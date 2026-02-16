@@ -3,7 +3,7 @@
   "id": "dieselbrook-content-importer",
   "api": "1.0.0",
   "main": "dist/code.js",
-  "ui": "dist/ui.html",
+  "ui": "src/ui.html",
   "editorType": ["figma"],
   "networkAccess": {
     "allowedDomains": ["https://raw.githubusercontent.com"]
