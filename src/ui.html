@@ -1,150 +1,167 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; background: #fff; color: #333; font-size: 13px; }
+    h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a; }
+    .drop-zone {
+      border: 2px dashed #ccc; border-radius: 8px; padding: 32px 16px; text-align: center;
+      cursor: pointer; transition: all 0.2s; margin-bottom: 12px; background: #fafafa;
     }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      padding: 16px;
-      color: #333;
-    }
-    h2 {
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 12px;
-    }
-    .input-group {
-      margin-bottom: 16px;
-    }
-    label {
-      display: block;
-      font-size: 12px;
-      margin-bottom: 6px;
-      color: #666;
-    }
-    input[type="file"] {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 12px;
-    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: #18a0fb; background: #f0f7ff; }
+    .drop-zone p { color: #666; font-size: 12px; margin-top: 4px; }
+    .drop-zone .icon { font-size: 24px; margin-bottom: 8px; }
+    #file-input { display: none; }
+    .preview { background: #f5f5f5; border-radius: 6px; padding: 12px; margin-bottom: 12px; font-size: 12px; display: none; }
+    .preview .stat { display: flex; justify-content: space-between; padding: 3px 0; }
+    .preview .stat .label { color: #666; }
+    .preview .stat .value { font-weight: 600; }
     button {
-      width: 100%;
-      padding: 10px;
-      background: #18A0FB;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s;
+      width: 100%; padding: 10px; border: none; border-radius: 6px; font-size: 13px;
+      font-weight: 600; cursor: pointer; transition: all 0.15s;
     }
-    button:hover {
-      background: #1589D4;
-    }
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-    .status {
-      margin-top: 12px;
-      padding: 10px;
-      border-radius: 4px;
-      font-size: 12px;
-      display: none;
-    }
-    .status.success {
-      background: #E8F5E9;
-      color: #2E7D32;
-      display: block;
-    }
-    .status.error {
-      background: #FFEBEE;
-      color: #C62828;
-      display: block;
-    }
-    .status.info {
-      background: #E3F2FD;
-      color: #1565C0;
-      display: block;
-    }
+    #import-btn { background: #18a0fb; color: #fff; }
+    #import-btn:hover { background: #0d8ce0; }
+    #import-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .success { background: #e6f9ed; color: #1a7f37; border-radius: 6px; padding: 12px; text-align: center; display: none; margin-top: 12px; }
+    .error { background: #fdecea; color: #c62828; border-radius: 6px; padding: 12px; text-align: center; display: none; margin-top: 12px; }
   </style>
 </head>
 <body>
-  <h2>Import Content Plan</h2>
-  
-  <div class="input-group">
-    <label for="jsonFile">Select JSON file exported from Google Sheets:</label>
-    <input type="file" id="jsonFile" accept=".json" />
+  <h2>📋 Content Importer</h2>
+
+  <div class="drop-zone" id="drop-zone">
+    <div class="icon">📄</div>
+    <strong>Drop JSON file here</strong>
+    <p>or click to browse</p>
   </div>
-  
-  <button id="importBtn" disabled>Import to Figma</button>
-  
-  <div id="status" class="status"></div>
+  <input type="file" id="file-input" accept=".json">
+
+  <div class="preview" id="preview">
+    <div class="stat"><span class="label">File</span><span class="value" id="file-name">—</span></div>
+    <div class="stat"><span class="label">Posts found</span><span class="value" id="post-count">—</span></div>
+    <div class="stat"><span class="label">Frames to create</span><span class="value" id="frame-count">—</span></div>
+  </div>
+
+  <button id="import-btn" disabled>Import into Figma</button>
+
+  <div class="success" id="success">✅ <span id="success-msg"></span></div>
+  <div class="error" id="error">❌ <span id="error-msg"></span></div>
 
   <script>
-    const fileInput = document.getElementById('jsonFile');
-    const importBtn = document.getElementById('importBtn');
-    const statusDiv = document.getElementById('status');
-    
     let jsonData = null;
-    
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      
+
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const preview = document.getElementById('preview');
+    const importBtn = document.getElementById('import-btn');
+    const successEl = document.getElementById('success');
+    const errorEl = document.getElementById('error');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+    function parseDimensions(dimStr) {
+      if (!dimStr) return [{ label: 'Frame', width: 1080, height: 1080 }];
+      const results = [];
+      // Handle "or" splits: "1080x1920px (vertical Reel) or 1080x1080px (carousel backup)"
+      const orParts = dimStr.split(/\s+or\s+/i);
+      if (orParts.length > 1) {
+        for (const part of orParts) {
+          const m = part.match(/(\d+)\s*x\s*(\d+)\s*px/i);
+          if (m) {
+            const label = part.replace(/\d+\s*x\s*\d+\s*px/i, '').replace(/[()]/g, '').trim() || 'Frame';
+            results.push({ label, width: parseInt(m[1]), height: parseInt(m[2]) });
+          }
+        }
+        return results.length ? results : [{ label: 'Frame', width: 1080, height: 1080 }];
+      }
+      // Handle pipe splits: "FB: 1200x630px | IG Story: 1080x1920px"
+      const parts = dimStr.split('|');
+      for (const part of parts) {
+        const m = part.match(/(\d+)\s*x\s*(\d+)\s*px/i);
+        if (m) {
+          const label = part.replace(/\d+\s*x\s*\d+\s*px/i, '').replace(/:/g, '').trim() || 'Frame';
+          results.push({ label, width: parseInt(m[1]), height: parseInt(m[2]) });
+        }
+      }
+      return results.length ? results : [{ label: 'Frame', width: 1080, height: 1080 }];
+    }
+
+    function countCarouselSlides(visualBrief) {
+      if (!visualBrief) return 0;
+      const matches = visualBrief.match(/Slide\s+\d+/gi);
+      return matches ? Math.max(...matches.map(m => parseInt(m.match(/\d+/)[0]))) : 0;
+    }
+
+    function countFrames(posts) {
+      let total = 0;
+      for (const post of posts) {
+        const dims = parseDimensions(post.Dimensions);
+        const isCarousel = (post.Content_Format || '').toLowerCase().includes('carousel');
+        if (isCarousel) {
+          const slides = countCarouselSlides(post.Visual_Brief);
+          total += Math.max(slides, 1) * dims.length;
+        } else {
+          total += dims.length;
+        }
+      }
+      return total;
+    }
+
+    function handleFile(file) {
+      successEl.style.display = 'none';
+      errorEl.style.display = 'none';
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = (e) => {
         try {
-          jsonData = JSON.parse(event.target.result);
+          jsonData = JSON.parse(e.target.result);
+          if (!Array.isArray(jsonData)) throw new Error('JSON must be an array of posts');
+          document.getElementById('file-name').textContent = file.name;
+          document.getElementById('post-count').textContent = jsonData.length;
+          document.getElementById('frame-count').textContent = countFrames(jsonData);
+          preview.style.display = 'block';
           importBtn.disabled = false;
-          showStatus('File loaded successfully. Ready to import.', 'success');
-        } catch (error) {
-          showStatus('Invalid JSON file. Please check the format.', 'error');
+        } catch (err) {
+          errorEl.style.display = 'block';
+          document.getElementById('error-msg').textContent = 'Invalid JSON: ' + err.message;
+          jsonData = null;
           importBtn.disabled = true;
         }
       };
       reader.readAsText(file);
-    });
-    
+    }
+
     importBtn.addEventListener('click', () => {
       if (!jsonData) return;
-      
       importBtn.disabled = true;
-      showStatus('Importing content to Figma...', 'info');
-      
-      parent.postMessage({
-        pluginMessage: {
-          type: 'import',
-          data: jsonData
-        }
-      }, '*');
+      importBtn.textContent = 'Importing...';
+      parent.postMessage({ pluginMessage: { type: 'import', data: jsonData } }, '*');
     });
-    
+
     window.onmessage = (event) => {
       const msg = event.data.pluginMessage;
-      if (msg.type === 'import-complete') {
-        showStatus(`Successfully imported ${msg.count} posts!`, 'success');
-        setTimeout(() => {
-          importBtn.disabled = false;
-        }, 2000);
-      } else if (msg.type === 'import-error') {
-        showStatus(`Error: ${msg.error}`, 'error');
+      if (!msg) return;
+      if (msg.type === 'success') {
+        successEl.style.display = 'block';
+        document.getElementById('success-msg').textContent = msg.message;
+        importBtn.textContent = 'Import into Figma';
+        importBtn.disabled = false;
+      } else if (msg.type === 'error') {
+        errorEl.style.display = 'block';
+        document.getElementById('error-msg').textContent = msg.message;
+        importBtn.textContent = 'Import into Figma';
         importBtn.disabled = false;
       }
     };
-    
-    function showStatus(message, type) {
-      statusDiv.textContent = message;
-      statusDiv.className = `status ${type}`;
-    }
   </script>
 </body>
 </html>

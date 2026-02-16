@@ -1,18 +1,13 @@
 {
   "name": "figma-content-importer",
   "version": "1.0.0",
-  "description": "Import social media content plans from Google Sheets into Figma",
-  "main": "dist/code.js",
+  "description": "Figma plugin to import social media content plans from Google Sheets",
   "scripts": {
     "build": "tsc",
-    "watch": "tsc --watch",
     "convert": "node scripts/convert.js"
   },
-  "keywords": ["figma", "plugin", "social-media", "content-planning"],
-  "author": "Dieselbrook",
-  "license": "MIT",
   "devDependencies": {
-    "@figma/plugin-typings": "^1.90.0",
-    "typescript": "^5.3.3"
+    "@figma/plugin-typings": "^1.100.0",
+    "typescript": "^5.3.0"
   }
 }

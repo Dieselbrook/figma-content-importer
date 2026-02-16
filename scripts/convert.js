@@ -1,119 +1,111 @@
 #!/usr/bin/env node
 
 /**
- * CSV to JSON Converter for Content Importer
- * 
+ * CSV to JSON converter for Figma Content Importer
+ *
  * Usage:
- *   node scripts/convert.js input.csv output.json
- *   node scripts/convert.js input.csv (outputs to stdout)
+ *   node scripts/convert.js input.csv > output.json
+ *   cat input.csv | node scripts/convert.js > output.json
+ *
+ * Handles quoted fields with newlines (e.g., multi-line captions from Google Sheets)
  */
 
 const fs = require('fs');
-const path = require('path');
 
-function parseCSV(csvText) {
-  const lines = csvText.split('\n');
-  if (lines.length < 2) {
-    throw new Error('CSV file must have at least a header row and one data row');
+function parseCSV(text) {
+  const rows = [];
+  let current = '';
+  let inQuotes = false;
+  let row = [];
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        current += '"';
+        i++; // skip escaped quote
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        row.push(current.trim());
+        current = '';
+      } else if (ch === '\n' || (ch === '\r' && next === '\n')) {
+        row.push(current.trim());
+        current = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+        if (ch === '\r') i++; // skip \n in \r\n
+      } else {
+        current += ch;
+      }
+    }
   }
-  
-  // Parse header
-  const headers = parseCSVLine(lines[0]);
-  
-  // Parse data rows
+
+  // Last field/row
+  if (current || row.length > 0) {
+    row.push(current.trim());
+    if (row.length > 1 || row[0] !== '') rows.push(row);
+  }
+
+  return rows;
+}
+
+function csvToJson(text) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) {
+    console.error('Error: CSV must have a header row and at least one data row');
+    process.exit(1);
+  }
+
+  const headers = rows[0];
   const data = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue; // Skip empty lines
-    
-    const values = parseCSVLine(line);
-    if (values.length === 0) continue;
-    
-    const row = {};
-    headers.forEach((header, index) => {
-      row[header] = values[index] || '';
-    });
-    
-    data.push(row);
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.every(cell => !cell)) continue; // skip empty rows
+
+    const obj = {};
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = row[j] || '';
+    }
+    data.push(obj);
   }
-  
+
   return data;
 }
 
-function parseCSVLine(line) {
-  const values = [];
-  let current = '';
-  let inQuotes = false;
-  
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    const nextChar = line[i + 1];
-    
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        // Escaped quote
-        current += '"';
-        i++; // Skip next quote
-      } else {
-        // Toggle quote state
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      // End of field
-      values.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  
-  // Add last field
-  values.push(current.trim());
-  
-  return values;
-}
+// ─── Main ────────────────────────────────────────────────────
 
-function main() {
-  const args = process.argv.slice(2);
-  
-  if (args.length === 0) {
-    console.error('Usage: node convert.js <input.csv> [output.json]');
-    console.error('');
-    console.error('Examples:');
-    console.error('  node scripts/convert.js content-plan.csv content-plan.json');
-    console.error('  node scripts/convert.js content-plan.csv > output.json');
-    process.exit(1);
-  }
-  
-  const inputFile = args[0];
-  const outputFile = args[1];
-  
-  if (!fs.existsSync(inputFile)) {
-    console.error(`Error: Input file not found: ${inputFile}`);
-    process.exit(1);
-  }
-  
+let input = '';
+
+if (process.argv[2]) {
+  // File argument
   try {
-    // Read CSV
-    const csvText = fs.readFileSync(inputFile, 'utf-8');
-    
-    // Parse to JSON
-    const jsonData = parseCSV(csvText);
-    
-    // Output
-    const jsonOutput = JSON.stringify(jsonData, null, 2);
-    
-    if (outputFile) {
-      fs.writeFileSync(outputFile, jsonOutput, 'utf-8');
-      console.log(`✅ Converted ${jsonData.length} rows`);
-      console.log(`📄 Output: ${outputFile}`);
-    } else {
-      console.log(jsonOutput);
-    }
-  } catch (error) {
-    console.error(`Error: ${error.message}`);
+    input = fs.readFileSync(process.argv[2], 'utf-8');
+  } catch (err) {
+    console.error(`Error reading file: ${err.message}`);
     process.exit(1);
   }
+  console.log(JSON.stringify(csvToJson(input), null, 2));
+} else if (!process.stdin.isTTY) {
+  // Pipe/stdin
+  const chunks = [];
+  process.stdin.setEncoding('utf-8');
+  process.stdin.on('data', chunk => chunks.push(chunk));
+  process.stdin.on('end', () => {
+    input = chunks.join('');
+    console.log(JSON.stringify(csvToJson(input), null, 2));
+  });
+} else {
+  console.error('Usage: node scripts/convert.js <input.csv>');
+  console.error('       cat input.csv | node scripts/convert.js');
+  process.exit(1);
 }
-
-main();
