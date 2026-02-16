@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; background: #fff; color: #333; font-size: 13px; }
+    h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a; }
+    .preview { background: #f5f5f5; border-radius: 6px; padding: 12px; margin-bottom: 12px; font-size: 12px; }
+    .preview .stat { display: flex; justify-content: space-between; padding: 3px 0; }
+    .preview .stat .label { color: #666; }
+    .preview .stat .value { font-weight: 600; }
+    .refresh { font-size: 11px; color: #18a0fb; cursor: pointer; text-decoration: underline; text-align: right; margin-top: 6px; }
+    .refresh:hover { color: #0d8ce0; }
+    button {
+      width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 14px;
+      font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    #import-btn { background: #18a0fb; color: #fff; margin-top: 4px; }
+    #import-btn:hover { background: #0d8ce0; }
+    #import-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .loading { text-align: center; color: #888; font-size: 12px; padding: 24px 0; }
+    .success { background: #e6f9ed; color: #1a7f37; border-radius: 6px; padding: 12px; text-align: center; display: none; margin-top: 12px; }
+    .error { background: #fdecea; color: #c62828; border-radius: 6px; padding: 12px; text-align: center; display: none; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h2>Content Importer</h2>
+
+  <div id="loading" class="loading">Fetching latest content...</div>
+
+  <div id="preview" class="preview" style="display:none;">
+    <div class="stat"><span class="label">Posts</span><span class="value" id="post-count">—</span></div>
+    <div class="stat"><span class="label">Frames to create</span><span class="value" id="frame-count">—</span></div>
+    <div class="stat"><span class="label">Last updated</span><span class="value" id="last-updated">—</span></div>
+    <div class="refresh" id="refresh-link">Refresh</div>
+  </div>
+
+  <button id="import-btn" disabled>Import Latest Content</button>
+
+  <div class="success" id="success"><span id="success-msg"></span></div>
+  <div class="error" id="error"><span id="error-msg"></span></div>
+
+  <script>
+    const INLINE_DATA = [
+  {
+    "Post_ID": "MAR-001",
+    "Month": "March",
+    "Week": "1",
+    "Scheduled_Date": "2026-03-04",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Carousel",
+    "Theme": "Autumn Transition Tips",
+    "Product_Focus": "General (Multistage)",
+    "Caption": "FB: Is your dog ready for cooler weather? 🍂\n\nAutumn in SA means crisp mornings, muddy paws, and dogs who suddenly think 6am walks are acceptable. Here's how to keep your legend thriving through the transition:\n\n🐾 Coat care — Shedding season kicks in. Brush more, stress less.\n🐾 Feeding adjustments — Active dogs may need slightly more fuel as temps drop.\n🐾 Adventure time — Perfect hiking weather. Just remember: ticks love autumn too.\n\nWhat's your dog's favourite autumn vibe? Stoep sunbather or veld explorer? 👇\n\n#JOCKDogFood #UnleashYourInnerLegend #AutumnDogs #DogCare #SADogs #DogLovers\n\n---\n\nIG: Autumn vibes, autumn needs 🍂\n\nYour dog's coat is shedding. Their energy is peaking. The veld is calling. Here's how to keep them legendary through the transition ⬇️\n\n👉 Swipe for tips\n\n#JOCKDogFood #UnleashYourInnerLegend #AutumnDogs #DogCare #SADogs #DogsOfSA #DogLife #DogHealth #DogNutrition #ProudlySouthAfrican #DogTips #PetParents #DogLovers #DogsOfInstagram",
+    "Hashtags": "#JOCKDogFood #UnleashYourInnerLegend #AutumnDogs #DogCare #SADogs",
+    "Visual_Brief": "Slide 1: Hero image of happy large-breed dog (Golden Retriever/Labrador/Ridgeback) outdoors in autumn setting with golden light and leaves. Text overlay: 'Is Your Dog Ready for Autumn?' JOCK logo bottom corner. Slide 2: Clean layout with icons, 3 tips (Coat care, Feeding adjustments, Adventure time), warm autumn palette. Slide 3: JOCK Multistage bag in natural outdoor setting, text: 'Fuel every season with JOCK Multistage'",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-002",
+    "Month": "March",
+    "Week": "1",
+    "Scheduled_Date": "2026-03-07",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Photo",
+    "Theme": "Junior Range Spotlight",
+    "Product_Focus": "JOCK Junior",
+    "Caption": "FB: Teenage dog energy is REAL 💪\n\nYour gentle giant is 8 months old. They've got the body of a full-grown Rottie and the brain of a puppy who just discovered their reflection. Welcome to the Junior phase.\n\nJOCK Junior is formulated for large and giant breed puppies from 2–24 months — sustained growth for big frames, without rushing development. Because a Boerboel isn't done growing at 12 months, and neither is a Great Dane.\n\nIs your teenage legend eating you out of house and home? 👇 Tell us about it.\n\n#JOCKDogFood #JOCKJunior #UnleashYourInnerLegend #LargeBreedPuppies #PuppyNutrition #GiantBreeds #DogNutrition #SADogs #DogLovers\n\n---\n\nIG: Big body. Puppy brain. Legendary appetite 💪\n\nYour gentle giant is in the Junior phase — 2 to 24 months of nonstop growth, chaos, and love.\n\nJOCK Junior fuels large & giant breed puppies without rushing development. Because a Boerboel isn't done at 12 months 🐾\n\nTag your teenage legend below ⬇️\n\n#JOCKDogFood #JOCKJunior #UnleashYourInnerLegend #LargeBreedPuppies #PuppyNutrition #GiantBreeds #DogNutrition #SADogs #DogsOfSA #DogLife #PuppyLife #Boerboel #GreatDane #Rottweiler #GoldenRetriever #Labrador #DogsOfInstagram",
+    "Hashtags": "#JOCKDogFood #JOCKJunior #UnleashYourInnerLegend #LargeBreedPuppies #GiantBreeds",
+    "Visual_Brief": "Hero image: Large breed teenager dog (Boerboel, Rottweiler, Great Dane, or Golden Retriever aged 8-16 months). Key aesthetic: Big body, slightly gangly proportions, oversized paws, but face still has puppy features (soft, expressive, round eyes). Setting: Natural SA outdoor scene (garden, veld, or stoep). JOCK Junior bag in frame, naturally positioned. Optional text overlay: 'Big Body. Puppy Brain. JOCK Junior.'",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-003",
+    "Month": "March",
+    "Week": "1",
+    "Scheduled_Date": "2026-03-07",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Photo",
+    "Theme": "Friday Meme - Vet Panic",
+    "Product_Focus": "None (Engagement)",
+    "Caption": "FB: Every. Single. Time. 🏃💨\n\nYou whispered 'vet' once and now your dog has vanished into thin air. Under the bed? Behind the couch? In another dimension?\n\nWhere does YOUR dog hide when they hear the V-word? 😂👇\n\n#JOCKDogFood #DogMemes #DogHumour #DogLife #RelatableDogMoments #SADogs #DogLovers\n\n---\n\nIG: POV: You said 'vet' 🏃💨\n\nNow they're under the bed, behind the couch, or in another dimension entirely.\n\nDrop a 😂 if this is your dog\n\n#JOCKDogFood #DogMemes #DogHumour #DogLife #RelatableDogMoments #SADogs #DogsOfSA #FunnyDogs #DogLovers #DogsOfInstagram #PetHumour #DogOwnerLife #DogProblems",
+    "Hashtags": "#JOCKDogFood #DogMemes #DogHumour #DogLife #SADogs",
+    "Visual_Brief": "Classic meme format. Option 1: Split-screen with top panel showing happy relaxed dog, bottom panel showing same dog hiding/running (blurry motion or under furniture). Text: 'BEFORE you say vet' / 'AFTER you say vet'. Option 2: Single image of dog hiding under bed/behind couch/peeking nervously. Text overlay: 'POV: You whispered vet once'. Real dog photo (not stock), relatable SA home setting, high contrast text, no JOCK branding needed.",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-004",
+    "Month": "March",
+    "Week": "2",
+    "Scheduled_Date": "2026-03-10",
+    "Platform": "Facebook + Instagram Story",
+    "Content_Format": "Poll",
+    "Theme": "Happy Happies Flavour Face-Off",
+    "Product_Focus": "JOCK Happy Happies",
+    "Caption": "FB: The great debate: Biltong, Boerewors, or Braaivleis? 🥩\n\nYour dog has opinions. Strong ones. Possibly louder than yours.\n\nJOCK Happy Happies come in three legendary SA flavours — which one does your dog lose their mind over?\n\nVote below 👇 (and tell us if your dog actually has a favourite or just inhales all three)\n\n#JOCKDogFood #JOCKHappyHappies #UnleashYourInnerLegend #DogTreats #SADogs #DogLovers #ProudlySouthAfrican\n\nPoll Options: 🥓 Biltong | 🌭 Boerewors | 🥩 Braaivleis | 🐾 My dog eats ALL of them\n\n---\n\nIG Story: Biltong, Boerewors, or Braaivleis? 🥩\n\nYour dog has OPINIONS. Vote below 👇\n\n#JOCKHappyHappies #DogTreats\n\nStory Poll: Option A: Biltong 🥓 | Option B: Boerewors 🌭 | Follow-up: Braaivleis 🥩",
+    "Hashtags": "#JOCKDogFood #JOCKHappyHappies #UnleashYourInnerLegend #DogTreats #SADogs",
+    "Visual_Brief": "Facebook Poll Image (1200x630px landscape): Product shot showing all three Happy Happies flavours side-by-side (Biltong, Boerewors, Braaivleis bags). Clean background, good lighting. Optional: Dog in background looking excited/drooling. Text overlay: 'Which flavour does YOUR dog love?'. Instagram Story (1080x1920px vertical): Similar product layout but story-optimized with poll sticker overlay. Playful, bright aesthetic.",
+    "Dimensions": "FB: 1200x630px | IG Story: 1080x1920px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-005",
+    "Month": "March",
+    "Week": "2",
+    "Scheduled_Date": "2026-03-13",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Carousel",
+    "Theme": "Grandeur Puppy Spotlight",
+    "Product_Focus": "JOCK Grandeur Puppy",
+    "Caption": "FB: Premium nutrition for your gentle giant 🐾\n\nYour Great Dane puppy is 4 months old and already bigger than some full-grown dogs. Their paws are the size of your hand. They're clumsy, lovable, and growing faster than you can keep up with.\n\nJOCK Grandeur Puppy is formulated specifically for large and giant breed puppies aged 2–8 months — premium ingredients, balanced calcium and phosphorus, and joint support for those rapidly developing frames.\n\nBecause your Boerboel isn't just any puppy. They're a legend in the making.\n\nSwipe for the Grandeur difference 👉\n\n#JOCKDogFood #JOCKGrandeur #UnleashYourInnerLegend #GrandeurPuppy #LargeBreedPuppies #PuppyNutrition #PremiumDogFood #SADogs #DogLovers #Boerboel #GreatDane #GiantBreeds\n\n---\n\nIG: Your gentle giant deserves Grandeur 🐾\n\n4 months old. Paws the size of your hand. Growing faster than you can keep up.\n\nJOCK Grandeur Puppy: premium nutrition for large & giant breed puppies (2–8 months). Balanced growth. Joint support. Legendary ingredients.\n\n👉 Swipe for the difference\n\n#JOCKDogFood #JOCKGrandeur #UnleashYourInnerLegend #GrandeurPuppy #LargeBreedPuppies #PuppyNutrition #PremiumDogFood #SADogs #DogsOfSA #DogLife #PuppyLife #Boerboel #GreatDane #GiantBreeds #DogHealth #DogsOfInstagram",
+    "Hashtags": "#JOCKDogFood #JOCKGrandeur #UnleashYourInnerLegend #GrandeurPuppy #LargeBreedPuppies",
+    "Visual_Brief": "Slide 1 (Hero): Adorable large/giant breed puppy 2-6 months (Boerboel, Great Dane, Newfoundland, Bernese). Healthy, alert, playful. Natural SA setting (garden, stoep, outdoor). Text overlay: 'Premium Nutrition for Your Gentle Giant'. JOCK Grandeur Puppy bag visible. Slide 2 (Benefits): Clean design with icons, 3 benefits: Balanced calcium & phosphorus for bone growth, Joint support for developing frames, Premium ingredients for gentle giants. Grandeur branding colours. Slide 3 (CTA): JOCK Grandeur Puppy bag product shot. Text: 'Because your legend deserves Grandeur'. Subtle CTA: 'Ask your vet or pet store'.",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-013",
+    "Month": "March",
+    "Week": "3",
+    "Scheduled_Date": "2026-03-20",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Photo",
+    "Theme": "Senior Range Spotlight - Grey Muzzle, Still Legendary",
+    "Product_Focus": "JOCK Senior",
+    "Caption": "FB: Grey muzzle. Still legendary. 💚\n\nYour Ridgeback is 9 years old. They've slowed down on the long hikes, but they still own the stoep. Their face is greying, their joints need a little extra love, but their spirit? Absolutely untouchable.\n\nJOCK Senior is formulated for dogs 7+ years — joint support, easy digestion, and nutrition that honours every year they've stood by your side.\n\nBecause legends don't retire. They just level up.\n\nTag your senior legend below 👇\n\n#JOCKDogFood #JOCKSenior #UnleashYourInnerLegend #SeniorDogs #OldDogsAreTheBest #GreyMuzzle #DogLovers #SADogs #Ridgeback #LegendaryDogs\n\n---\n\nIG: Grey muzzle. Still legendary 💚\n\nYour senior dog has earned every grey hair. And they deserve nutrition that honours it.\n\nJOCK Senior: joint support, easy digestion, legendary care for dogs 7+ years.\n\nTag your old-timer below 👇\n\n#JOCKDogFood #JOCKSenior #UnleashYourInnerLegend #SeniorDogs #OldDogsAreTheBest #GreyMuzzle #DogLovers #SADogs #DogsOfSA #DogLife #SeniorDogLove #LegendaryDogs #DogsOfInstagram #AdoptDontShop",
+    "Hashtags": "#JOCKDogFood #JOCKSenior #UnleashYourInnerLegend #SeniorDogs #GreyMuzzle",
+    "Visual_Brief": "Hero image: Senior dog (7+ years) with visible grey muzzle and/or greying paws. Aesthetic: Dignified, healthy, ACTIVE - legendary status, not frail or sad. Breed examples: Ridgeback, Labrador, Golden Retriever, German Shepherd. Setting: Natural SA outdoor scene (stoep, garden, beach, veld) showing they're still enjoying life. JOCK Senior bag visible in frame, naturally positioned. Optional text overlay: 'Grey Muzzle, Still Legendary'. Key vibe: Respectful celebration of ageing dogs, not pity.",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-014",
+    "Month": "March",
+    "Week": "4",
+    "Scheduled_Date": "2026-03-28",
+    "Platform": "Facebook + Instagram Story",
+    "Content_Format": "Poll",
+    "Theme": "Interactive Poll - What's Your Dog's Energy Level?",
+    "Product_Focus": "None (Engagement)",
+    "Caption": "FB: Honest question: What's your dog's actual energy level? 🔋\n\nWe all have that friend whose dog 'just needs a quick walk' and then proceeds to run 15km without breaking a sweat. And then there's the dog who considers walking from the couch to the food bowl their cardio for the day.\n\nNo judgment. Just vibes.\n\nVote below 👇\n\n#JOCKDogFood #DogLife #DogEnergy #SADogs #DogLovers #RelatableDogMoments #DogHumour\n\nPoll Options: ⚡ Zoomies 24/7 | 🏃 Active legend | 🚶 Moderate walker | 🛋️ Professional couch potato\n\n---\n\nIG Story: What's your dog's REAL energy level? 🔋\n\nVote below 👇\n\n#JOCKDogFood #DogLife #DogEnergy\n\nStory Poll: Slide 1: ⚡ Zoomies 24/7 vs 🛋️ Couch Potato | Slide 2: Follow-up 'Does your dog's energy match YOUR energy?' (Yes/No)",
+    "Hashtags": "#JOCKDogFood #DogLife #DogEnergy #SADogs #RelatableDogMoments",
+    "Visual_Brief": "Facebook Poll Image (1200x630px landscape): Split-screen or quad layout showing 4 dogs representing each energy level: Top left: Dog mid-zoomies (blurry, chaotic), Top right: Dog on hike/run (active adventure), Bottom left: Dog on casual walk (relaxed), Bottom right: Dog sprawled on couch/bed (lazy legend). Text overlay: 'What's Your Dog's Energy Level?'. Fun, lighthearted design. Instagram Story (1080x1920px vertical): Similar concept but story-optimized with poll stickers. Bright, playful aesthetic.",
+    "Dimensions": "FB: 1200x630px | IG Story: 1080x1920px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-006",
+    "Month": "March",
+    "Week": "2",
+    "Scheduled_Date": "2026-03-15",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Carousel",
+    "Theme": "Legendary Moments UGC Feature",
+    "Product_Focus": "General (Community)",
+    "Caption": "FB: Your JOCK legends this month 🐾💚\n\nEvery day we see incredible dogs living their best lives — from stoep sunbathers to veld explorers, from gentle giants to pocket rockets.\n\nThis month's Legendary Moments come from YOU. Swipe to meet some of the legends in the JOCK family 👉\n\n(Want to feature YOUR dog? Tag us in your posts or DM us your favourite photo!)\n\n#JOCKDogFood #UnleashYourInnerLegend #JOCKLegends #JOCKFamily #DogsOfSA #CommunityLove #SADogs #DogLovers #ProudlySouthAfrican\n\n---\n\nIG: Your legends. Your moments. 💚\n\nSwipe to meet some of the incredible dogs in the JOCK family this month ⬇️\n\nWant YOUR dog featured? Tag us or DM your fave photo 📸\n\n#JOCKDogFood #UnleashYourInnerLegend #JOCKLegends #JOCKFamily #DogsOfSA #CommunityLove #SADogs #DogsOfInstagram #DogLife #DogLovers #ProudlySouthAfrican #UGC #DogCommunity",
+    "Hashtags": "#JOCKDogFood #UnleashYourInnerLegend #JOCKLegends #JOCKFamily #DogsOfSA",
+    "Visual_Brief": "Slide 1 (Cover): Text overlay 'Your JOCK Legends This Month 💚'. Background: Collage preview of featured dogs OR single hero dog image. JOCK logo bottom corner. Slides 2-5 (Featured Dogs): Each slide features ONE follower's dog photo (with permission). Include: Dog's name, Owner's Instagram handle (credit), Brief caption about the dog (e.g. 'Meet Boomer, 3-year-old Ridgeback from Pretoria'). Clean, consistent layout. Warm, community-focused aesthetic. Sourcing: Pull from recent tagged posts, ensure mix of breeds/ages/products, get explicit permission. Priority: authentic SA dogs, outdoor/lifestyle shots.",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-007",
+    "Month": "March",
+    "Week": "3",
+    "Scheduled_Date": "2026-03-23",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Photo",
+    "Theme": "JOCK Puppy Feature - National Puppy Day",
+    "Product_Focus": "JOCK Puppy",
+    "Caption": "FB: Happy National Puppy Day to every pocket rocket out there 🐾\n\nYour Jack Russell is 6 months old and thinks they're the size of a Great Dane. Your Staffy puppy has more energy than a braai full of kids. Your Beagle is currently destroying their third toy this week.\n\nJOCK Puppy is formulated for small to medium breed puppies (2–12 months) — growth support built for compact legends who think they run the world.\n\nBecause they do. And they deserve nutrition that keeps up.\n\nDrop a 📸 of your pocket rocket below 👇\n\n#JOCKDogFood #JOCKPuppy #UnleashYourInnerLegend #NationalPuppyDay #PuppyLove #SmallBreedPuppies #PuppyNutrition #SADogs #DogLovers #JackRussell #Staffy #Beagle\n\n---\n\nIG: Happy National Puppy Day 🐾\n\nYour pocket rocket thinks they run the world. They're probably right.\n\nJOCK Puppy: growth support for small to medium breed puppies (2–12 months). Built for legends who pack big energy into compact frames.\n\nTag your puppy below 👇\n\n#JOCKDogFood #JOCKPuppy #UnleashYourInnerLegend #NationalPuppyDay #PuppyLove #SmallBreedPuppies #PuppyNutrition #SADogs #DogsOfSA #DogLife #PuppyLife #JackRussell #Staffy #Beagle #DogsOfInstagram #PetParents",
+    "Hashtags": "#JOCKDogFood #JOCKPuppy #UnleashYourInnerLegend #NationalPuppyDay #PuppyLove",
+    "Visual_Brief": "Hero image: Small to medium breed puppy (Jack Russell, Staffy, Beagle, Cocker Spaniel, or similar) aged 3-8 months. Aesthetic: Playful, energetic, authentic puppy behavior (mid-play, zooming, or classic puppy eyes). Setting: Natural SA home or outdoor setting. JOCK Puppy bag visible in frame, naturally positioned. Optional text overlay: 'Happy National Puppy Day' or 'Pocket Rocket Energy'.",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-008",
+    "Month": "March",
+    "Week": "3",
+    "Scheduled_Date": "2026-03-23",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Carousel",
+    "Theme": "National Puppy Day Interactive - Puppy or Potato?",
+    "Product_Focus": "General (Engagement)",
+    "Caption": "FB: National Puppy Day Challenge: Puppy or Potato? 🥔🐶\n\nLet's be honest — some puppies are just lumpy potatoes with legs. And we love them for it.\n\nSwipe through and vote in the comments:\nSlide 1: Puppy or Potato?\nSlide 2: Puppy or Potato?\nSlide 3: Puppy or Potato?\nSlide 4: ALL PUPPIES. Because even potato-shaped legends deserve love.\n\nDrop your guesses below 👇 (and tag someone whose puppy definitely looks like a potato)\n\n#JOCKDogFood #NationalPuppyDay #PuppyOrPotato #DogMemes #PuppyLove #SADogs #DogLovers #DogHumour\n\n---\n\nIG: Puppy or potato? 🥔🐶\n\nIt's National Puppy Day and we're celebrating the lumpy legends.\n\n👉 Swipe and guess in the comments\n\n(Tag someone whose puppy looks like a potato)\n\n#JOCKDogFood #NationalPuppyDay #PuppyOrPotato #DogMemes #PuppyLove #SADogs #DogsOfSA #DogLife #DogHumour #FunnyDogs #DogsOfInstagram #PuppyLife",
+    "Hashtags": "#JOCKDogFood #NationalPuppyDay #PuppyOrPotato #DogMemes #PuppyLove",
+    "Visual_Brief": "Slide 1-3 (The Game): Each slide: Side-by-side image of a puppy and a potato. Puppies should be chubby, sleepy, or in potato-like poses (curled up, loafing, etc.). Potatoes should be roughly dog-shaped (wrinkly ones work best). Text overlay: 'Puppy or Potato? 🥔🐶'. Clean, playful layout. Slide 4 (The Reveal): Collage of adorable chubby puppies. Text: 'They're ALL puppies. And they're ALL legends 💚'. JOCK logo bottom corner. Fun, lighthearted, shareable meme format.",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-009",
+    "Month": "March",
+    "Week": "3",
+    "Scheduled_Date": "2026-03-21",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Photo",
+    "Theme": "Human Rights Day - Every Dog Deserves",
+    "Product_Focus": "General (Values)",
+    "Caption": "FB: Every dog deserves legendary nutrition 🇿🇦\n\nToday we celebrate Human Rights Day in South Africa — a reminder that dignity, care, and respect matter.\n\nAt JOCK, we believe every dog deserves that same standard. Not just the pedigrees. Not just the show dogs. Every rescue, every farm dog, every stoep legend, every gentle giant.\n\nBecause when we care for our dogs, we're building a better world — one bowl at a time.\n\nHappy Human Rights Day, South Africa 💚\n\n#JOCKDogFood #UnleashYourInnerLegend #HumanRightsDay #ProudlySouthAfrican #SADogs #DogLovers #RescueDogs #EveryDogMatters\n\n---\n\nIG: Every dog deserves legendary nutrition 🇿🇦\n\nToday we celebrate Human Rights Day. At JOCK, we believe every dog — rescue, farm dog, stoep legend, gentle giant — deserves the same care and respect.\n\nOne bowl at a time 💚\n\n#JOCKDogFood #UnleashYourInnerLegend #HumanRightsDay #ProudlySouthAfrican #SADogs #DogsOfSA #DogLovers #RescueDogs #EveryDogMatters #DogLife #SouthAfrica",
+    "Hashtags": "#JOCKDogFood #UnleashYourInnerLegend #HumanRightsDay #ProudlySouthAfrican #SADogs",
+    "Visual_Brief": "Hero image: Heartwarming photo of a rescue dog or mixed-breed dog looking healthy, happy, and dignified. Aesthetic: Warm, authentic, emotionally resonant (not sad/pity-focused — celebratory). Setting: Natural SA environment (veld, garden, farm, township — authentic SA dog life). Optional: South African flag colours subtly incorporated (not heavy-handed). Text overlay (optional): 'Every Dog Deserves' or 'Legendary Nutrition for Every Legend'. Product: JOCK bag optional (can be present but not the focus). Tone: Values-led, not product-pushy.",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-010",
+    "Month": "March",
+    "Week": "3",
+    "Scheduled_Date": "2026-03-18",
+    "Platform": "Instagram Reel + Facebook Video",
+    "Content_Format": "Reel",
+    "Theme": "Training Wins with Happy Happies",
+    "Product_Focus": "JOCK Happy Happies",
+    "Caption": "FB: Every good boy deserves Happy Happies 🐾\n\nTraining isn't just about commands — it's about building trust, celebrating wins, and rewarding progress.\n\nWhether it's 'sit' for the first time or finally mastering 'stay,' JOCK Happy Happies are the fuel for every breakthrough moment.\n\nWhat's the best trick your dog has learned? Drop it in the comments 👇\n\n#JOCKDogFood #JOCKHappyHappies #UnleashYourInnerLegend #DogTraining #PositiveReinforcement #DogTreats #SADogs #DogLovers #GoodBoy\n\n---\n\nIG: Training wins deserve legendary rewards 🐾\n\nEvery 'sit.' Every 'stay.' Every breakthrough moment.\n\nJOCK Happy Happies: not just treats. Training fuel.\n\nWhat's your dog's best trick? 👇\n\n#JOCKDogFood #JOCKHappyHappies #UnleashYourInnerLegend #DogTraining #PositiveReinforcement #DogTreats #SADogs #DogsOfSA #DogLife #GoodBoy #DogTricks #DogsOfInstagram #ReelsDogs",
+    "Hashtags": "#JOCKDogFood #JOCKHappyHappies #UnleashYourInnerLegend #DogTraining #PositiveReinforcement",
+    "Visual_Brief": "Reel Concept (15-30 seconds): Scene 1 (0-5s): Dog struggling with a command (e.g. trying to sit, getting distracted). Scene 2 (5-10s): Owner shows Happy Happies treat, dog's attention snaps into focus. Scene 3 (10-20s): Dog nails the command, gets the treat, celebration moment. Scene 4 (20-30s): Happy dog enjoying Happy Happies, text overlay: 'Training Wins Start Here'. Style: Authentic, relatable training moment (not overly polished). Real SA dog owner vibe (home, garden, backyard setting). Product clearly visible but not forced. Optional: trending audio or motivational sound. Alternative (if Reel not feasible): Static carousel showing before/during/after training moment with Happy Happies.",
+    "Dimensions": "1080x1920px (vertical Reel) or 1080x1080px (carousel backup)",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-011",
+    "Month": "March",
+    "Week": "4",
+    "Scheduled_Date": "2026-03-29",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Photo",
+    "Theme": "Autumn Dog Meme - First Leaves",
+    "Product_Focus": "None (Engagement)",
+    "Caption": "FB: POV: Your dog discovering autumn leaves for the first time 🍂\n\nIs it a toy? Is it food? Is it a threat? Who knows. But it's DEFINITELY worth barking at for 10 minutes straight.\n\nAutumn in SA hits different when you've got a dog who thinks every falling leaf is a personal attack 😂\n\nWhat's your dog's autumn vibe? Leaf hunter or leaf ignorer? 👇\n\n#JOCKDogFood #AutumnDogs #DogMemes #DogHumour #SADogs #DogLife #RelatableDogMoments #DogLovers\n\n---\n\nIG: Autumn leaves: exist\n\nDogs: IS THIS A THREAT? 🍂😂\n\nDrop a 🍂 if your dog loses it over falling leaves\n\n#JOCKDogFood #AutumnDogs #DogMemes #DogHumour #SADogs #DogsOfSA #DogLife #RelatableDogMoments #FunnyDogs #DogsOfInstagram #DogLovers #PetHumour",
+    "Hashtags": "#JOCKDogFood #AutumnDogs #DogMemes #DogHumour #SADogs",
+    "Visual_Brief": "Classic meme format — shareable, relatable, high-impact text. Option 1 (Single image): Dog mid-bark or mid-pounce at falling leaves (action shot). Text overlay: 'POV: Your dog discovering autumn leaves for the first time'. Autumn setting (SA garden, park, veld with fallen leaves). Option 2 (Split-screen meme): Top panel: Peaceful autumn scene with dog calmly sitting. Bottom panel: Same dog going absolutely feral at a single falling leaf. Text: 'Autumn vibes' vs 'My dog's autumn vibes'. Aesthetic: Real, candid dog photo (not staged). SA autumn setting (golden light, indigenous trees if possible). High contrast text for readability. No JOCK branding needed — pure engagement bait.",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  },
+  {
+    "Post_ID": "MAR-012",
+    "Month": "March",
+    "Week": "4",
+    "Scheduled_Date": "2026-03-26",
+    "Platform": "Facebook + Instagram",
+    "Content_Format": "Photo",
+    "Theme": "March Giveaway Announcement",
+    "Product_Focus": "Mixed (Puppy + Happy Happies + Merch)",
+    "Caption": "FB: 🎉 MARCH GIVEAWAY 🎉\n\nIt's National Puppy Day month, so we're celebrating with a legendary hamper for one lucky winner!\n\n**WIN:**\n🐾 1x JOCK Puppy 20kg bag\n🐾 1x Happy Happies Biscuits (your choice of flavour)\n🐾 JOCK-branded dog bowl & bandana\n\n**HOW TO ENTER:**\n1️⃣ Like this post\n2️⃣ Tag a friend with a puppy (or puppy-at-heart)\n3️⃣ Bonus entry: Share this post to your story and tag @jockdogfood\n\n**CLOSES:** 31 March 2026 at 23:59 SAST\n**WINNER ANNOUNCED:** 1 April 2026\n\nGood luck, legends! 💚\n\nT&Cs: SA residents only. Winner selected at random. Prize must be collected or shipping arranged within 7 days.\n\n#JOCKDogFood #UnleashYourInnerLegend #Giveaway #JOCKGiveaway #SADogs #DogLovers #NationalPuppyDay #Competition #WinWithJOCK\n\n---\n\nIG: 🎉 GIVEAWAY TIME 🎉\n\nPuppy hamper up for grabs! One lucky legend wins:\n\n🐾 JOCK Puppy 20kg bag\n🐾 Happy Happies Biscuits\n🐾 JOCK bowl & bandana\n\n**TO ENTER:**\n✅ Like this post\n✅ Tag a friend with a puppy\n✅ BONUS: Share to your story & tag us\n\nCloses 31 March. Winner announced 1 April.\n\nGood luck! 💚\n\nT&Cs: SA only. Random draw. 7-day claim.\n\n#JOCKDogFood #UnleashYourInnerLegend #Giveaway #JOCKGiveaway #SADogs #DogsOfSA #DogLovers #NationalPuppyDay #Competition #WinWithJOCK #DogsOfInstagram #SACompetition",
+    "Hashtags": "#JOCKDogFood #UnleashYourInnerLegend #Giveaway #JOCKGiveaway #SADogs",
+    "Visual_Brief": "Hero image: Flat-lay product shot showing all giveaway items arranged attractively: JOCK Puppy bag (hero product), Happy Happies biscuit pack, JOCK-branded dog bowl, JOCK bandana. Setting: Clean, well-lit product photography (outdoor natural light preferred). Text overlay: 'MARCH GIVEAWAY' in bold, eye-catching text. Design: Bright, celebratory, stops the scroll. Optional: Small graphic elements (confetti, paw prints) to emphasize giveaway vibe. Note: Ensure legal T&Cs compliance for SA giveaways (random draw, no purchase necessary, age restrictions if any).",
+    "Dimensions": "1080x1080px",
+    "Figma_Frame": "",
+    "Status": "Approved",
+    "Approved_By": "Deon",
+    "Published_URL": ""
+  }
+];
+    let jsonData = null;
+    const DATA_URL = null; // Disabled — using inline data
+
+    // INLINE_DATA is injected at build time by scripts/build.js
+    // When present, we skip the network fetch entirely
+    const INLINE_DATA = typeof window.INLINE_DATA !== 'undefined' ? window.INLINE_DATA : null;
+
+    const loadingEl = document.getElementById('loading');
+    const preview = document.getElementById('preview');
+    const importBtn = document.getElementById('import-btn');
+    const successEl = document.getElementById('success');
+    const errorEl = document.getElementById('error');
+
+    function parseDimensions(dimStr) {
+      if (!dimStr) return [{ label: 'Frame', width: 1080, height: 1080 }];
+      const results = [];
+      const orParts = dimStr.split(/\s+or\s+/i);
+      if (orParts.length > 1) {
+        for (const part of orParts) {
+          const m = part.match(/(\d+)\s*x\s*(\d+)\s*px/i);
+          if (m) {
+            const label = part.replace(/\d+\s*x\s*\d+\s*px/i, '').replace(/[()]/g, '').trim() || 'Frame';
+            results.push({ label, width: parseInt(m[1]), height: parseInt(m[2]) });
+          }
+        }
+        return results.length ? results : [{ label: 'Frame', width: 1080, height: 1080 }];
+      }
+      const parts = dimStr.split('|');
+      for (const part of parts) {
+        const m = part.match(/(\d+)\s*x\s*(\d+)\s*px/i);
+        if (m) {
+          const label = part.replace(/\d+\s*x\s*\d+\s*px/i, '').replace(/:/g, '').trim() || 'Frame';
+          results.push({ label, width: parseInt(m[1]), height: parseInt(m[2]) });
+        }
+      }
+      return results.length ? results : [{ label: 'Frame', width: 1080, height: 1080 }];
+    }
+
+    function countCarouselSlides(visualBrief) {
+      if (!visualBrief) return 0;
+      const matches = visualBrief.match(/Slide\s+\d+/gi);
+      return matches ? Math.max(...matches.map(m => parseInt(m.match(/\d+/)[0]))) : 0;
+    }
+
+    function countFrames(posts) {
+      let total = 0;
+      for (const post of posts) {
+        const dims = parseDimensions(post.Dimensions);
+        const isCarousel = (post.Content_Format || '').toLowerCase().includes('carousel');
+        if (isCarousel) {
+          const slides = countCarouselSlides(post.Visual_Brief);
+          total += Math.max(slides, 1) * dims.length;
+        } else {
+          total += dims.length;
+        }
+      }
+      return total;
+    }
+
+    function loadData(posts) {
+      loadingEl.style.display = 'none';
+      if (!posts || posts.length === 0) {
+        errorEl.style.display = 'block';
+        document.getElementById('error-msg').textContent = 'No posts found — run git pull to get latest data.';
+        return;
+      }
+      jsonData = posts;
+      document.getElementById('post-count').textContent = posts.length;
+      document.getElementById('frame-count').textContent = countFrames(posts);
+      document.getElementById('last-updated').textContent = new Date().toLocaleDateString();
+      preview.style.display = 'block';
+      importBtn.disabled = false;
+    }
+
+    function fetchLatest() {
+      jsonData = null;
+      importBtn.disabled = true;
+      successEl.style.display = 'none';
+      errorEl.style.display = 'none';
+      loadingEl.style.display = 'block';
+      preview.style.display = 'none';
+
+      // Use inline data if available (injected at build time)
+      if (INLINE_DATA && Array.isArray(INLINE_DATA) && INLINE_DATA.length > 0) {
+        loadData(INLINE_DATA);
+        return;
+      }
+
+      // Fallback: try fetching from GitHub (works for public repos)
+      if (DATA_URL) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', DATA_URL + '?t=' + Date.now(), true);
+        xhr.onload = function () {
+          if (xhr.status === 200) {
+            try {
+              const parsed = JSON.parse(xhr.responseText);
+              const posts = Array.isArray(parsed) ? parsed : (parsed.posts || []);
+              loadData(posts);
+            } catch (err) {
+              errorEl.style.display = 'block';
+              loadingEl.style.display = 'none';
+              document.getElementById('error-msg').textContent = 'Invalid JSON: ' + err.message;
+            }
+          } else {
+            loadingEl.style.display = 'none';
+            errorEl.style.display = 'block';
+            document.getElementById('error-msg').textContent = 'No data available. Run git pull then rebuild: node scripts/build.js';
+          }
+        };
+        xhr.onerror = function () {
+          loadingEl.style.display = 'none';
+          errorEl.style.display = 'block';
+          document.getElementById('error-msg').textContent = 'No data available. Run git pull then rebuild: node scripts/build.js';
+        };
+        xhr.send();
+      } else {
+        loadingEl.style.display = 'none';
+        errorEl.style.display = 'block';
+        document.getElementById('error-msg').textContent = 'No data available. Run git pull then rebuild: node scripts/build.js';
+      }
+    }
+
+    document.getElementById('refresh-link').addEventListener('click', fetchLatest);
+
+    importBtn.addEventListener('click', () => {
+      if (!jsonData) return;
+      importBtn.disabled = true;
+      importBtn.textContent = 'Importing...';
+      successEl.style.display = 'none';
+      errorEl.style.display = 'none';
+      parent.postMessage({ pluginMessage: { type: 'import', data: jsonData } }, '*');
+    });
+
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+      if (msg.type === 'success') {
+        successEl.style.display = 'block';
+        document.getElementById('success-msg').textContent = msg.message;
+        importBtn.textContent = 'Import Latest Content';
+        importBtn.disabled = false;
+      } else if (msg.type === 'error') {
+        errorEl.style.display = 'block';
+        document.getElementById('error-msg').textContent = msg.message;
+        importBtn.textContent = 'Import Latest Content';
+        importBtn.disabled = false;
+      }
+    };
+
+    // Auto-fetch on load
+    fetchLatest();
+  </script>
+</body>
+</html>

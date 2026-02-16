@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Figma plugin to import social media content plans from Google Sheets",
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/build.js",
     "convert": "node scripts/convert.js"
   },
   "devDependencies": {

@@ -44,6 +44,10 @@
     const DATA_URL = 'https://raw.githubusercontent.com/Dieselbrook/figma-content-importer/main/data/latest.json';
     let jsonData = null;
 
+    // INLINE_DATA is injected at build time by scripts/build.js
+    // When present, we skip the network fetch entirely
+    const INLINE_DATA = typeof window.INLINE_DATA !== 'undefined' ? window.INLINE_DATA : null;
+
     const loadingEl = document.getElementById('loading');
     const preview = document.getElementById('preview');
     const importBtn = document.getElementById('import-btn');
@@ -96,6 +100,21 @@
       return total;
     }
 
+    function loadData(posts) {
+      loadingEl.style.display = 'none';
+      if (!posts || posts.length === 0) {
+        errorEl.style.display = 'block';
+        document.getElementById('error-msg').textContent = 'No posts found — run git pull to get latest data.';
+        return;
+      }
+      jsonData = posts;
+      document.getElementById('post-count').textContent = posts.length;
+      document.getElementById('frame-count').textContent = countFrames(posts);
+      document.getElementById('last-updated').textContent = new Date().toLocaleDateString();
+      preview.style.display = 'block';
+      importBtn.disabled = false;
+    }
+
     function fetchLatest() {
       jsonData = null;
       importBtn.disabled = true;
@@ -104,51 +123,44 @@
       loadingEl.style.display = 'block';
       preview.style.display = 'none';
 
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', DATA_URL + '?t=' + Date.now(), true);
-      xhr.onload = function () {
-        loadingEl.style.display = 'none';
-        if (xhr.status === 200) {
-          try {
-            const parsed = JSON.parse(xhr.responseText);
-            let posts, metadata;
-            if (Array.isArray(parsed)) {
-              posts = parsed;
-              metadata = {};
-            } else if (parsed.posts && Array.isArray(parsed.posts)) {
-              posts = parsed.posts;
-              metadata = parsed.metadata || {};
-            } else {
-              throw new Error('Unexpected JSON format');
-            }
+      // Use inline data if available (injected at build time)
+      if (INLINE_DATA && Array.isArray(INLINE_DATA) && INLINE_DATA.length > 0) {
+        loadData(INLINE_DATA);
+        return;
+      }
 
-            if (posts.length === 0) {
+      // Fallback: try fetching from GitHub (works for public repos)
+      if (DATA_URL) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', DATA_URL + '?t=' + Date.now(), true);
+        xhr.onload = function () {
+          if (xhr.status === 200) {
+            try {
+              const parsed = JSON.parse(xhr.responseText);
+              const posts = Array.isArray(parsed) ? parsed : (parsed.posts || []);
+              loadData(posts);
+            } catch (err) {
               errorEl.style.display = 'block';
-              document.getElementById('error-msg').textContent = 'No posts found — data file is empty.';
-              return;
+              loadingEl.style.display = 'none';
+              document.getElementById('error-msg').textContent = 'Invalid JSON: ' + err.message;
             }
-
-            jsonData = posts;
-            document.getElementById('post-count').textContent = posts.length;
-            document.getElementById('frame-count').textContent = countFrames(posts);
-            document.getElementById('last-updated').textContent = metadata.updated || 'unknown';
-            preview.style.display = 'block';
-            importBtn.disabled = false;
-          } catch (err) {
+          } else {
+            loadingEl.style.display = 'none';
             errorEl.style.display = 'block';
-            document.getElementById('error-msg').textContent = 'Invalid JSON: ' + err.message;
+            document.getElementById('error-msg').textContent = 'No data available. Run git pull then rebuild: node scripts/build.js';
           }
-        } else {
+        };
+        xhr.onerror = function () {
+          loadingEl.style.display = 'none';
           errorEl.style.display = 'block';
-          document.getElementById('error-msg').textContent = 'Fetch failed (HTTP ' + xhr.status + ')';
-        }
-      };
-      xhr.onerror = function () {
+          document.getElementById('error-msg').textContent = 'No data available. Run git pull then rebuild: node scripts/build.js';
+        };
+        xhr.send();
+      } else {
         loadingEl.style.display = 'none';
         errorEl.style.display = 'block';
-        document.getElementById('error-msg').textContent = 'Network error — could not reach GitHub.';
-      };
-      xhr.send();
+        document.getElementById('error-msg').textContent = 'No data available. Run git pull then rebuild: node scripts/build.js';
+      }
     }
 
     document.getElementById('refresh-link').addEventListener('click', fetchLatest);
