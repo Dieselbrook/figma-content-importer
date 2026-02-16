@@ -244,7 +244,7 @@ async function importPosts(posts: PostData[]) {
 
 // ─── Plugin Entry ────────────────────────────────────────────
 
-figma.showUI(__html__, { width: 340, height: 420 });
+figma.showUI(__html__, { width: 340, height: 320 });
 
 figma.ui.onmessage = async (msg: { type: string; data?: PostData[] }) => {
   if (msg.type === 'import' && msg.data) {

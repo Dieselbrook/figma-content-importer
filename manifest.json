@@ -4,5 +4,8 @@
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "src/ui.html",
-  "editorType": ["figma"]
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["https://raw.githubusercontent.com"]
+  }
 }

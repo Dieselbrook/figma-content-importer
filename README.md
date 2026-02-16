@@ -1,6 +1,6 @@
 # Content Importer — Figma Plugin
 
-A Figma plugin that imports social media content plans from Google Sheets into Figma, automatically creating frames and placing copy/briefs for designers.
+A Figma plugin that imports social media content plans into Figma with one click, automatically creating frames and placing copy/briefs for designers.
 
 Built by [Dieselbrook](https://dieselbrook.co.za).
 
@@ -10,38 +10,25 @@ Moving content plans from a Google Sheet into Figma is tedious — manually crea
 
 ## The Solution
 
-Export your content calendar as CSV → convert to JSON → import into Figma. The plugin creates:
-
-- **Text blocks** (left) with Post ID, platform, format, caption, and visual brief
-- **Empty frames** (right) at the correct dimensions, ready for design
+An automated pipeline: the OpenClaw bot fetches your Google Sheet, converts it to JSON, and commits it to this repo. The designer opens the Figma plugin, sees a preview, and clicks **one button** to import everything.
 
 ## Workflow
 
 ```
-Google Sheet → Export as CSV → Convert to JSON → Import in Figma
+Google Sheet → OpenClaw bot fetches CSV → Converts to JSON → Commits to repo
+                                                                    ↓
+                              Designer clicks "Import Latest Content" in Figma
 ```
 
-### 1. Export CSV from Google Sheets
+### How it works
 
-`File → Download → Comma Separated Values (.csv)`
+1. **Bot prepares data** — The OpenClaw bot fetches the content calendar CSV from Google Sheets, converts it to JSON, and commits it to `data/latest.json` in this repo.
+2. **Designer imports** — Open Figma → Plugins → Content Importer → click **Import Latest Content**. That's it.
 
-### 2. Convert CSV to JSON
+The plugin creates:
 
-```bash
-node scripts/convert.js your-export.csv > content.json
-```
-
-Or pipe it:
-```bash
-cat your-export.csv | node scripts/convert.js > content.json
-```
-
-### 3. Import in Figma
-
-1. Open Figma → Plugins → Content Importer
-2. Drop or select your `content.json` file
-3. Preview the post count and frame count
-4. Click **Import into Figma**
+- **Text blocks** (left) with Post ID, platform, format, caption, and visual brief
+- **Empty frames** (right) at the correct dimensions, ready for design
 
 ## Supported Formats
 
@@ -54,18 +41,23 @@ The plugin handles all common dimension formats from content calendars:
 | With backup | `1080x1920px (vertical Reel) or 1080x1080px (carousel backup)` | 2 frames |
 | Carousel | Content_Format: "Carousel" + slides in Visual_Brief | N frames per slide |
 
-## Expected CSV Columns
+## JSON Format
 
-| Column | Required | Description |
-|--------|----------|-------------|
-| Post_ID | ✅ | Unique identifier (e.g., MAR-001) |
+The `data/latest.json` file can be either:
+
+- A plain array of post objects: `[{ "Post_ID": "MAR-001", ... }, ...]`
+- An object with metadata: `{ "metadata": { "updated": "2026-02-16" }, "posts": [...] }`
+
+### Post fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Post_ID | Yes | Unique identifier (e.g., MAR-001) |
 | Platform | — | Facebook, Instagram, etc. |
 | Content_Format | — | Photo, Carousel, Reel, Story, etc. |
-| Caption | — | Post copy (FB + IG versions) |
+| Caption | — | Post copy |
 | Visual_Brief | — | Art direction for the designer |
 | Dimensions | — | Frame size(s) to create |
-
-Other columns (Month, Week, Scheduled_Date, Theme, Product_Focus, Hashtags, Status, etc.) are preserved in the JSON but not displayed in Figma.
 
 ## Development
 
@@ -81,15 +73,9 @@ npm run build
 # Select manifest.json from this repo
 ```
 
-## Reuse for Other Clients
+## Bot Workflow
 
-This plugin is client-agnostic. To use for a different client:
-
-1. Export their content calendar as CSV (same column structure)
-2. Run the converter
-3. Import into a new Figma file
-
-No code changes needed.
+See [.github/BOT_WORKFLOW.md](.github/BOT_WORKFLOW.md) for details on how the OpenClaw bot keeps `data/latest.json` up to date.
 
 ## License
 

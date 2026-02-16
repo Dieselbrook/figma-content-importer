@@ -5,74 +5,54 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; background: #fff; color: #333; font-size: 13px; }
     h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #1a1a1a; }
-    .drop-zone {
-      border: 2px dashed #ccc; border-radius: 8px; padding: 32px 16px; text-align: center;
-      cursor: pointer; transition: all 0.2s; margin-bottom: 12px; background: #fafafa;
-    }
-    .drop-zone:hover, .drop-zone.dragover { border-color: #18a0fb; background: #f0f7ff; }
-    .drop-zone p { color: #666; font-size: 12px; margin-top: 4px; }
-    .drop-zone .icon { font-size: 24px; margin-bottom: 8px; }
-    #file-input { display: none; }
-    .preview { background: #f5f5f5; border-radius: 6px; padding: 12px; margin-bottom: 12px; font-size: 12px; display: none; }
+    .preview { background: #f5f5f5; border-radius: 6px; padding: 12px; margin-bottom: 12px; font-size: 12px; }
     .preview .stat { display: flex; justify-content: space-between; padding: 3px 0; }
     .preview .stat .label { color: #666; }
     .preview .stat .value { font-weight: 600; }
+    .refresh { font-size: 11px; color: #18a0fb; cursor: pointer; text-decoration: underline; text-align: right; margin-top: 6px; }
+    .refresh:hover { color: #0d8ce0; }
     button {
-      width: 100%; padding: 10px; border: none; border-radius: 6px; font-size: 13px;
+      width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 14px;
       font-weight: 600; cursor: pointer; transition: all 0.15s;
     }
-    #import-btn { background: #18a0fb; color: #fff; }
+    #import-btn { background: #18a0fb; color: #fff; margin-top: 4px; }
     #import-btn:hover { background: #0d8ce0; }
     #import-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .loading { text-align: center; color: #888; font-size: 12px; padding: 24px 0; }
     .success { background: #e6f9ed; color: #1a7f37; border-radius: 6px; padding: 12px; text-align: center; display: none; margin-top: 12px; }
     .error { background: #fdecea; color: #c62828; border-radius: 6px; padding: 12px; text-align: center; display: none; margin-top: 12px; }
   </style>
 </head>
 <body>
-  <h2>📋 Content Importer</h2>
+  <h2>Content Importer</h2>
 
-  <div class="drop-zone" id="drop-zone">
-    <div class="icon">📄</div>
-    <strong>Drop JSON file here</strong>
-    <p>or click to browse</p>
-  </div>
-  <input type="file" id="file-input" accept=".json">
+  <div id="loading" class="loading">Fetching latest content...</div>
 
-  <div class="preview" id="preview">
-    <div class="stat"><span class="label">File</span><span class="value" id="file-name">—</span></div>
-    <div class="stat"><span class="label">Posts found</span><span class="value" id="post-count">—</span></div>
+  <div id="preview" class="preview" style="display:none;">
+    <div class="stat"><span class="label">Posts</span><span class="value" id="post-count">—</span></div>
     <div class="stat"><span class="label">Frames to create</span><span class="value" id="frame-count">—</span></div>
+    <div class="stat"><span class="label">Last updated</span><span class="value" id="last-updated">—</span></div>
+    <div class="refresh" id="refresh-link">Refresh</div>
   </div>
 
-  <button id="import-btn" disabled>Import into Figma</button>
+  <button id="import-btn" disabled>Import Latest Content</button>
 
-  <div class="success" id="success">✅ <span id="success-msg"></span></div>
-  <div class="error" id="error">❌ <span id="error-msg"></span></div>
+  <div class="success" id="success"><span id="success-msg"></span></div>
+  <div class="error" id="error"><span id="error-msg"></span></div>
 
   <script>
+    const DATA_URL = 'https://raw.githubusercontent.com/Dieselbrook/figma-content-importer/main/data/latest.json';
     let jsonData = null;
 
-    const dropZone = document.getElementById('drop-zone');
-    const fileInput = document.getElementById('file-input');
+    const loadingEl = document.getElementById('loading');
     const preview = document.getElementById('preview');
     const importBtn = document.getElementById('import-btn');
     const successEl = document.getElementById('success');
     const errorEl = document.getElementById('error');
 
-    dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('dragover');
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
-
     function parseDimensions(dimStr) {
       if (!dimStr) return [{ label: 'Frame', width: 1080, height: 1080 }];
       const results = [];
-      // Handle "or" splits: "1080x1920px (vertical Reel) or 1080x1080px (carousel backup)"
       const orParts = dimStr.split(/\s+or\s+/i);
       if (orParts.length > 1) {
         for (const part of orParts) {
@@ -84,7 +64,6 @@
         }
         return results.length ? results : [{ label: 'Frame', width: 1080, height: 1080 }];
       }
-      // Handle pipe splits: "FB: 1200x630px | IG Story: 1080x1920px"
       const parts = dimStr.split('|');
       for (const part of parts) {
         const m = part.match(/(\d+)\s*x\s*(\d+)\s*px/i);
@@ -117,33 +96,69 @@
       return total;
     }
 
-    function handleFile(file) {
+    function fetchLatest() {
+      jsonData = null;
+      importBtn.disabled = true;
       successEl.style.display = 'none';
       errorEl.style.display = 'none';
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          jsonData = JSON.parse(e.target.result);
-          if (!Array.isArray(jsonData)) throw new Error('JSON must be an array of posts');
-          document.getElementById('file-name').textContent = file.name;
-          document.getElementById('post-count').textContent = jsonData.length;
-          document.getElementById('frame-count').textContent = countFrames(jsonData);
-          preview.style.display = 'block';
-          importBtn.disabled = false;
-        } catch (err) {
+      loadingEl.style.display = 'block';
+      preview.style.display = 'none';
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', DATA_URL + '?t=' + Date.now(), true);
+      xhr.onload = function () {
+        loadingEl.style.display = 'none';
+        if (xhr.status === 200) {
+          try {
+            const parsed = JSON.parse(xhr.responseText);
+            let posts, metadata;
+            if (Array.isArray(parsed)) {
+              posts = parsed;
+              metadata = {};
+            } else if (parsed.posts && Array.isArray(parsed.posts)) {
+              posts = parsed.posts;
+              metadata = parsed.metadata || {};
+            } else {
+              throw new Error('Unexpected JSON format');
+            }
+
+            if (posts.length === 0) {
+              errorEl.style.display = 'block';
+              document.getElementById('error-msg').textContent = 'No posts found — data file is empty.';
+              return;
+            }
+
+            jsonData = posts;
+            document.getElementById('post-count').textContent = posts.length;
+            document.getElementById('frame-count').textContent = countFrames(posts);
+            document.getElementById('last-updated').textContent = metadata.updated || 'unknown';
+            preview.style.display = 'block';
+            importBtn.disabled = false;
+          } catch (err) {
+            errorEl.style.display = 'block';
+            document.getElementById('error-msg').textContent = 'Invalid JSON: ' + err.message;
+          }
+        } else {
           errorEl.style.display = 'block';
-          document.getElementById('error-msg').textContent = 'Invalid JSON: ' + err.message;
-          jsonData = null;
-          importBtn.disabled = true;
+          document.getElementById('error-msg').textContent = 'Fetch failed (HTTP ' + xhr.status + ')';
         }
       };
-      reader.readAsText(file);
+      xhr.onerror = function () {
+        loadingEl.style.display = 'none';
+        errorEl.style.display = 'block';
+        document.getElementById('error-msg').textContent = 'Network error — could not reach GitHub.';
+      };
+      xhr.send();
     }
+
+    document.getElementById('refresh-link').addEventListener('click', fetchLatest);
 
     importBtn.addEventListener('click', () => {
       if (!jsonData) return;
       importBtn.disabled = true;
       importBtn.textContent = 'Importing...';
+      successEl.style.display = 'none';
+      errorEl.style.display = 'none';
       parent.postMessage({ pluginMessage: { type: 'import', data: jsonData } }, '*');
     });
 
@@ -153,15 +168,18 @@
       if (msg.type === 'success') {
         successEl.style.display = 'block';
         document.getElementById('success-msg').textContent = msg.message;
-        importBtn.textContent = 'Import into Figma';
+        importBtn.textContent = 'Import Latest Content';
         importBtn.disabled = false;
       } else if (msg.type === 'error') {
         errorEl.style.display = 'block';
         document.getElementById('error-msg').textContent = msg.message;
-        importBtn.textContent = 'Import into Figma';
+        importBtn.textContent = 'Import Latest Content';
         importBtn.disabled = false;
       }
     };
+
+    // Auto-fetch on load
+    fetchLatest();
   </script>
 </body>
 </html>
