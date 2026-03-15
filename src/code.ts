@@ -18,6 +18,10 @@ interface PostData {
   Status?: string;
   Approved_By?: string;
   Published_URL?: string;
+  Figma_Status?: string;
+  Image_URLs?: string;
+  // imageBytes is injected by the UI layer (base64 → Uint8Array conversion happens in ui.html)
+  _imageBytes?: number[][];
 }
 
 interface FrameDef {
@@ -147,7 +151,14 @@ function createTextBlock(post: PostData, x: number, y: number, height: number): 
   return container;
 }
 
-function createContentFrame(def: FrameDef, x: number, y: number, postId: string, index: number): FrameNode {
+function createContentFrame(
+  def: FrameDef,
+  x: number,
+  y: number,
+  postId: string,
+  index: number,
+  imageBytes?: Uint8Array
+): FrameNode {
   const scaledW = Math.round(def.width * SCALE_FACTOR);
   const scaledH = Math.round(def.height * SCALE_FACTOR);
 
@@ -156,31 +167,43 @@ function createContentFrame(def: FrameDef, x: number, y: number, postId: string,
   frame.resize(scaledW, scaledH);
   frame.x = x;
   frame.y = y;
-  frame.fills = [{ type: 'SOLID', color: { r: 0.93, g: 0.93, b: 0.93 } }];
   frame.cornerRadius = 4;
   frame.strokeWeight = 1;
   frame.strokes = [{ type: 'SOLID', color: { r: 0.8, g: 0.8, b: 0.8 } }];
+  frame.clipsContent = true;
 
-  // Size label inside frame
-  const label = figma.createText();
-  label.characters = `${def.width}×${def.height}`;
-  label.fontSize = 10;
-  label.fontName = { family: 'Inter', style: 'Regular' };
-  label.fills = [{ type: 'SOLID', color: { r: 0.6, g: 0.6, b: 0.6 } }];
-  label.x = 8;
-  label.y = 8;
-  frame.appendChild(label);
+  if (imageBytes && imageBytes.length > 0) {
+    // Place image as fill
+    const imageHash = figma.createImage(imageBytes);
+    frame.fills = [{
+      type: 'IMAGE',
+      imageHash: imageHash.hash,
+      scaleMode: 'FILL',
+    }];
+  } else {
+    // Placeholder fill
+    frame.fills = [{ type: 'SOLID', color: { r: 0.93, g: 0.93, b: 0.93 } }];
 
-  // Label name above or inside
-  if (def.label && def.label !== 'Frame') {
-    const nameLabel = figma.createText();
-    nameLabel.characters = def.label;
-    nameLabel.fontSize = 10;
-    nameLabel.fontName = { family: 'Inter', style: 'Bold' };
-    nameLabel.fills = [{ type: 'SOLID', color: { r: 0.5, g: 0.5, b: 0.5 } }];
-    nameLabel.x = 8;
-    nameLabel.y = 22;
-    frame.appendChild(nameLabel);
+    // Size label
+    const label = figma.createText();
+    label.characters = `${def.width}×${def.height}`;
+    label.fontSize = 10;
+    label.fontName = { family: 'Inter', style: 'Regular' };
+    label.fills = [{ type: 'SOLID', color: { r: 0.6, g: 0.6, b: 0.6 } }];
+    label.x = 8;
+    label.y = 8;
+    frame.appendChild(label);
+
+    if (def.label && def.label !== 'Frame') {
+      const nameLabel = figma.createText();
+      nameLabel.characters = def.label;
+      nameLabel.fontSize = 10;
+      nameLabel.fontName = { family: 'Inter', style: 'Bold' };
+      nameLabel.fills = [{ type: 'SOLID', color: { r: 0.5, g: 0.5, b: 0.5 } }];
+      nameLabel.x = 8;
+      nameLabel.y = 22;
+      frame.appendChild(nameLabel);
+    }
   }
 
   return frame;
@@ -221,14 +244,25 @@ async function importPosts(posts: PostData[]) {
     const textBlock = createTextBlock(post, 0, currentY, maxFrameHeight);
     page.appendChild(textBlock);
 
+    // Parse image bytes (one per frame slot, injected by UI)
+    const allImageBytes: (Uint8Array | undefined)[] = [];
+    if (post._imageBytes && Array.isArray(post._imageBytes)) {
+      for (const arr of post._imageBytes) {
+        allImageBytes.push(arr ? new Uint8Array(arr) : undefined);
+      }
+    }
+
     // Create frames
-    for (const fc of framesToCreate) {
+    for (let i = 0; i < framesToCreate.length; i++) {
+      const fc = framesToCreate[i];
+      const imgBytes = allImageBytes[i];
       const frame = createContentFrame(
         fc.def,
         fc.x,
         fc.y,
         post.Post_ID || 'Unknown',
-        fc.index
+        fc.index,
+        imgBytes
       );
       page.appendChild(frame);
       totalFrames++;

@@ -3,9 +3,13 @@
   "id": "dieselbrook-content-importer",
   "api": "1.0.0",
   "main": "dist/code.js",
-  "ui": "src/ui.html",
+  "ui": "dist/ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["https://raw.githubusercontent.com"]
+    "allowedDomains": [
+      "https://raw.githubusercontent.com",
+      "https://cdn.discordapp.com",
+      "https://media.discordapp.net"
+    ]
   }
 }

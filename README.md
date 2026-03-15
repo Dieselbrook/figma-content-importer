@@ -1,81 +1,91 @@
 # Content Importer — Figma Plugin
 
-A Figma plugin that imports social media content plans into Figma with one click, automatically creating frames and placing copy/briefs for designers.
+A Figma plugin that imports approved social media posts from Google Sheets into Figma — creating frames and placing actual generated images for designers to polish.
 
 Built by [Dieselbrook](https://dieselbrook.co.za).
-
-## The Problem
-
-Moving content plans from a Google Sheet into Figma is tedious — manually creating frames at the right sizes, copying captions and briefs, organizing everything. For 16–20 posts per plan, that's a lot of clicking.
-
-## The Solution
-
-An automated pipeline: the OpenClaw bot fetches your Google Sheet, converts it to JSON, and commits it to this repo. The designer opens the Figma plugin, sees a preview, and clicks **one button** to import everything.
 
 ## Workflow
 
 ```
-Google Sheet → OpenClaw bot fetches CSV → Converts to JSON → Commits to repo
-                                                                    ↓
-                              Designer clicks "Import Latest Content" in Figma
+#jock-social: "describe a shot" 
+    → Max generates 2 images via Mission Control ImageGen
+    → Images posted to Discord
+    → Reply "v1" or "v2"
+    → Max writes Image_URL + Figma_Status = ready to Google Sheet
+    → Run: npm run sync:build
+    → Open Figma → Content Importer → Import to Figma
+    → Frames created with images placed, captions/briefs alongside
+    → Designer polishes → publish
 ```
 
-### How it works
+### Filtering
 
-1. **Bot prepares data** — The OpenClaw bot fetches the content calendar CSV from Google Sheets, converts it to JSON, and commits it to `data/latest.json` in this repo.
-2. **Designer imports** — Open Figma → Plugins → Content Importer → click **Import Latest Content**. That's it.
+The plugin only imports rows where:
+- `Status = approved`
+- `Figma_Status = ready`
 
-The plugin creates:
+This means only posts that have been approved and have images are imported. Run `npm run sync -- --all` to import everything regardless of status.
 
-- **Text blocks** (left) with Post ID, platform, format, caption, and visual brief
-- **Empty frames** (right) at the correct dimensions, ready for design
-
-## Supported Formats
-
-The plugin handles all common dimension formats from content calendars:
-
-| Format | Example | Result |
-|--------|---------|--------|
-| Single | `1080x1080px` | 1 frame |
-| Multiple | `FB: 1200x630px \| IG Story: 1080x1920px` | 2 frames side by side |
-| With backup | `1080x1920px (vertical Reel) or 1080x1080px (carousel backup)` | 2 frames |
-| Carousel | Content_Format: "Carousel" + slides in Visual_Brief | N frames per slide |
-
-## JSON Format
-
-The `data/latest.json` file can be either:
-
-- A plain array of post objects: `[{ "Post_ID": "MAR-001", ... }, ...]`
-- An object with metadata: `{ "metadata": { "updated": "2026-02-16" }, "posts": [...] }`
-
-### Post fields
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| Post_ID | Yes | Unique identifier (e.g., MAR-001) |
-| Platform | — | Facebook, Instagram, etc. |
-| Content_Format | — | Photo, Carousel, Reel, Story, etc. |
-| Caption | — | Post copy |
-| Visual_Brief | — | Art direction for the designer |
-| Dimensions | — | Frame size(s) to create |
-
-## Development
+## Setup & Usage
 
 ```bash
 # Install dependencies
 npm install
 
-# Build TypeScript
-npm run build
+# Sync approved+ready posts from Google Sheet → data/latest.json, then build
+npm run sync:build
 
-# Load in Figma
-# Plugins → Development → Import plugin from manifest
+# Or separately:
+npm run sync          # pull from sheet
+npm run build         # compile + inline data into dist/
+
+# Load in Figma: Plugins → Development → Import plugin from manifest
 # Select manifest.json from this repo
 ```
 
-## Bot Workflow
+### Clients
 
-See [.github/BOT_WORKFLOW.md](.github/BOT_WORKFLOW.md) for details on how the OpenClaw bot keeps `data/latest.json` up to date.
+By default syncs JOCK. To sync a different client:
+
+```bash
+node scripts/sync-sheet.js --client=troygold
+```
+
+## Google Sheet Columns Used
+
+| Column | Purpose |
+|--------|---------|
+| Post_ID | Unique ID (e.g., JOCK-APR-W1-01) |
+| Status | Must be `approved` to import |
+| Figma_Status | Must be `ready` to import |
+| Platform | Facebook, Instagram, etc. |
+| Content_Format | Photo, Carousel, Reel, etc. |
+| Caption | Post copy |
+| Visual_Brief | Art direction |
+| Dimensions | Frame size(s) — e.g. `1080x1440px` |
+| Image_URLs | Comma-separated Discord CDN URLs (written by Max) |
+
+## What the Plugin Creates
+
+For each imported post:
+- **Text block** (left) — Post ID, platform, format, caption, visual brief
+- **Frame(s)** (right) — correct dimensions, scaled to 25% for canvas readability
+  - If `Image_URLs` present: image placed as fill
+  - If no image: grey placeholder with dimension label
+
+## Supported Dimension Formats
+
+| Format | Example | Result |
+|--------|---------|--------|
+| Single | `1080x1080px` | 1 frame |
+| Multiple | `FB: 1200x630px \| IG Story: 1080x1920px` | 2 frames |
+| With backup | `1080x1920px (vertical Reel) or 1080x1080px (carousel backup)` | 2 frames |
+| Carousel | Content_Format: "Carousel" + Slide N in Visual_Brief | N frames |
+
+## Service Account
+
+Reads Google Sheets via the `max-agent@max-dieselbrook.iam.gserviceaccount.com` service account.  
+Key path: `../social-media-engine/config/google-service-account.json` (relative to plugin root).
 
 ## License
 

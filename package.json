@@ -4,6 +4,11 @@
   "description": "Figma plugin to import social media content plans from Google Sheets",
   "scripts": {
     "build": "node scripts/build.js",
+    "build:live": "node scripts/build-live.js",
+    "sync": "node scripts/sync-sheet.js",
+    "sync:build": "node scripts/sync-sheet.js && node scripts/build.js",
+    "package": "node scripts/package-plugin.js",
+    "publish-data": "node scripts/publish-data.js",
     "convert": "node scripts/convert.js"
   },
   "devDependencies": {

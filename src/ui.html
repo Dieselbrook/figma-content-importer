@@ -9,6 +9,7 @@
     .preview .stat { display: flex; justify-content: space-between; padding: 3px 0; }
     .preview .stat .label { color: #666; }
     .preview .stat .value { font-weight: 600; }
+    .preview .stat .value.green { color: #1a7f37; }
     .refresh { font-size: 11px; color: #18a0fb; cursor: pointer; text-decoration: underline; text-align: right; margin-top: 6px; }
     .refresh:hover { color: #0d8ce0; }
     button {
@@ -19,8 +20,10 @@
     #import-btn:hover { background: #0d8ce0; }
     #import-btn:disabled { background: #ccc; cursor: not-allowed; }
     .loading { text-align: center; color: #888; font-size: 12px; padding: 24px 0; }
+    .progress { font-size: 11px; color: #666; text-align: center; padding: 6px 0; display: none; }
     .success { background: #e6f9ed; color: #1a7f37; border-radius: 6px; padding: 12px; text-align: center; display: none; margin-top: 12px; }
     .error { background: #fdecea; color: #c62828; border-radius: 6px; padding: 12px; text-align: center; display: none; margin-top: 12px; }
+    .warn { background: #fff8e1; color: #b45309; border-radius: 6px; padding: 10px 12px; font-size: 11px; display: none; margin-bottom: 10px; }
   </style>
 </head>
 <body>
@@ -29,13 +32,19 @@
   <div id="loading" class="loading">Fetching latest content...</div>
 
   <div id="preview" class="preview" style="display:none;">
-    <div class="stat"><span class="label">Posts</span><span class="value" id="post-count">—</span></div>
+    <div class="stat"><span class="label">Posts (approved + ready)</span><span class="value" id="post-count">—</span></div>
     <div class="stat"><span class="label">Frames to create</span><span class="value" id="frame-count">—</span></div>
-    <div class="stat"><span class="label">Last updated</span><span class="value" id="last-updated">—</span></div>
+    <div class="stat"><span class="label">Images to place</span><span class="value green" id="image-count">—</span></div>
+    <div class="stat"><span class="label">Last synced</span><span class="value" id="last-updated">—</span></div>
     <div class="refresh" id="refresh-link">Refresh</div>
   </div>
 
-  <button id="import-btn" disabled>Import Latest Content</button>
+  <div class="warn" id="warn-no-images">
+    ⚠️ No images found. Generate images first, then re-sync.
+  </div>
+
+  <button id="import-btn" disabled>Import to Figma</button>
+  <div class="progress" id="progress-msg"></div>
 
   <div class="success" id="success"><span id="success-msg"></span></div>
   <div class="error" id="error"><span id="error-msg"></span></div>
@@ -43,9 +52,8 @@
   <script>
     const DATA_URL = 'https://raw.githubusercontent.com/Dieselbrook/figma-content-importer/main/data/latest.json';
     let jsonData = null;
+    let enrichedData = null;
 
-    // INLINE_DATA is injected at build time by scripts/build.js
-    // When present, we skip the network fetch entirely
     const INLINE_DATA = typeof window.INLINE_DATA !== 'undefined' ? window.INLINE_DATA : null;
 
     const loadingEl = document.getElementById('loading');
@@ -53,6 +61,8 @@
     const importBtn = document.getElementById('import-btn');
     const successEl = document.getElementById('success');
     const errorEl = document.getElementById('error');
+    const progressEl = document.getElementById('progress-msg');
+    const warnEl = document.getElementById('warn-no-images');
 
     function parseDimensions(dimStr) {
       if (!dimStr) return [{ label: 'Frame', width: 1080, height: 1080 }];
@@ -100,78 +110,164 @@
       return total;
     }
 
+    // Fetch a single image URL and return base64 bytes as number[]
+    function fetchImageBytes(url) {
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'arraybuffer';
+        xhr.onload = function() {
+          if (xhr.status === 200) {
+            resolve(Array.from(new Uint8Array(xhr.response)));
+          } else {
+            console.warn('Failed to fetch image:', url, xhr.status);
+            resolve(null);
+          }
+        };
+        xhr.onerror = function() {
+          console.warn('Network error fetching image:', url);
+          resolve(null);
+        };
+        xhr.timeout = 15000;
+        xhr.ontimeout = function() {
+          console.warn('Timeout fetching image:', url);
+          resolve(null);
+        };
+        xhr.send();
+      });
+    }
+
+    // Parse comma-separated Image_URLs, return array of URL strings
+    function parseImageUrls(imageUrlsStr) {
+      if (!imageUrlsStr || !imageUrlsStr.trim()) return [];
+      return imageUrlsStr.split(',').map(u => u.trim()).filter(Boolean);
+    }
+
+    async function enrichWithImages(posts) {
+      const total = posts.filter(p => p.Image_URLs).length;
+      let done = 0;
+
+      const enriched = [];
+      for (const post of posts) {
+        const urls = parseImageUrls(post.Image_URLs);
+        if (urls.length === 0) {
+          enriched.push({ ...post, _imageBytes: [] });
+          continue;
+        }
+
+        progressEl.style.display = 'block';
+        progressEl.textContent = `Downloading images... (${done + 1}/${total})`;
+
+        const byteArrays = [];
+        for (const url of urls) {
+          const bytes = await fetchImageBytes(url);
+          byteArrays.push(bytes);
+        }
+
+        enriched.push({ ...post, _imageBytes: byteArrays });
+        done++;
+      }
+
+      progressEl.style.display = 'none';
+      return enriched;
+    }
+
     function loadData(posts) {
       loadingEl.style.display = 'none';
       if (!posts || posts.length === 0) {
         errorEl.style.display = 'block';
-        document.getElementById('error-msg').textContent = 'No posts found — run git pull to get latest data.';
+        document.getElementById('error-msg').textContent = 'No approved + ready posts found. Run: node scripts/sync-sheet.js && npm run build';
         return;
       }
+
       jsonData = posts;
+      const withImages = posts.filter(p => p.Image_URLs && p.Image_URLs.trim());
+      const imageCount = withImages.length;
+
       document.getElementById('post-count').textContent = posts.length;
       document.getElementById('frame-count').textContent = countFrames(posts);
-      document.getElementById('last-updated').textContent = new Date().toLocaleDateString();
+      document.getElementById('image-count').textContent = `${imageCount}/${posts.length}`;
+      document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
       preview.style.display = 'block';
+
+      if (imageCount === 0) {
+        warnEl.style.display = 'block';
+      } else {
+        warnEl.style.display = 'none';
+      }
+
       importBtn.disabled = false;
     }
 
     function fetchLatest() {
       jsonData = null;
+      enrichedData = null;
       importBtn.disabled = true;
       successEl.style.display = 'none';
       errorEl.style.display = 'none';
+      warnEl.style.display = 'none';
+      progressEl.style.display = 'none';
       loadingEl.style.display = 'block';
       preview.style.display = 'none';
 
-      // Use inline data if available (injected at build time)
       if (INLINE_DATA && Array.isArray(INLINE_DATA) && INLINE_DATA.length > 0) {
         loadData(INLINE_DATA);
         return;
       }
 
-      // Fallback: try fetching from GitHub (works for public repos)
       if (DATA_URL) {
         const xhr = new XMLHttpRequest();
         xhr.open('GET', DATA_URL + '?t=' + Date.now(), true);
-        xhr.onload = function () {
+        xhr.onload = function() {
           if (xhr.status === 200) {
             try {
               const parsed = JSON.parse(xhr.responseText);
               const posts = Array.isArray(parsed) ? parsed : (parsed.posts || []);
               loadData(posts);
             } catch (err) {
-              errorEl.style.display = 'block';
               loadingEl.style.display = 'none';
+              errorEl.style.display = 'block';
               document.getElementById('error-msg').textContent = 'Invalid JSON: ' + err.message;
             }
           } else {
             loadingEl.style.display = 'none';
             errorEl.style.display = 'block';
-            document.getElementById('error-msg').textContent = 'No data available. Run git pull then rebuild: node scripts/build.js';
+            document.getElementById('error-msg').textContent = 'No data. Run: node scripts/sync-sheet.js && npm run build';
           }
         };
-        xhr.onerror = function () {
+        xhr.onerror = function() {
           loadingEl.style.display = 'none';
           errorEl.style.display = 'block';
-          document.getElementById('error-msg').textContent = 'No data available. Run git pull then rebuild: node scripts/build.js';
+          document.getElementById('error-msg').textContent = 'No data. Run: node scripts/sync-sheet.js && npm run build';
         };
         xhr.send();
       } else {
         loadingEl.style.display = 'none';
         errorEl.style.display = 'block';
-        document.getElementById('error-msg').textContent = 'No data available. Run git pull then rebuild: node scripts/build.js';
+        document.getElementById('error-msg').textContent = 'No data. Run: node scripts/sync-sheet.js && npm run build';
       }
     }
 
     document.getElementById('refresh-link').addEventListener('click', fetchLatest);
 
-    importBtn.addEventListener('click', () => {
+    importBtn.addEventListener('click', async () => {
       if (!jsonData) return;
       importBtn.disabled = true;
-      importBtn.textContent = 'Importing...';
+      importBtn.textContent = 'Preparing images...';
       successEl.style.display = 'none';
       errorEl.style.display = 'none';
-      parent.postMessage({ pluginMessage: { type: 'import', data: jsonData } }, '*');
+
+      try {
+        // Fetch all images before sending to plugin
+        enrichedData = await enrichWithImages(jsonData);
+        importBtn.textContent = 'Importing to Figma...';
+        parent.postMessage({ pluginMessage: { type: 'import', data: enrichedData } }, '*');
+      } catch (err) {
+        importBtn.disabled = false;
+        importBtn.textContent = 'Import to Figma';
+        errorEl.style.display = 'block';
+        document.getElementById('error-msg').textContent = err.message || 'Image fetch failed';
+      }
     });
 
     window.onmessage = (event) => {
@@ -180,17 +276,16 @@
       if (msg.type === 'success') {
         successEl.style.display = 'block';
         document.getElementById('success-msg').textContent = msg.message;
-        importBtn.textContent = 'Import Latest Content';
+        importBtn.textContent = 'Import to Figma';
         importBtn.disabled = false;
       } else if (msg.type === 'error') {
         errorEl.style.display = 'block';
         document.getElementById('error-msg').textContent = msg.message;
-        importBtn.textContent = 'Import Latest Content';
+        importBtn.textContent = 'Import to Figma';
         importBtn.disabled = false;
       }
     };
 
-    // Auto-fetch on load
     fetchLatest();
   </script>
 </body>
