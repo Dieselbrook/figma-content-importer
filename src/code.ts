@@ -13,14 +13,15 @@ interface PostData {
   Caption?: string;
   Hashtags?: string;
   Visual_Brief?: string;
-  Dimensions?: string;
+  Other_Copy?: string;   // copy to appear ON the post images
+  Size?: string;         // frame size(s) — primary dimension source
+  Dimensions?: string;   // legacy fallback
   Figma_Frame?: string;
   Status?: string;
   Approved_By?: string;
   Published_URL?: string;
   Figma_Status?: string;
   Image_URLs?: string;
-  // imageBytes is injected by the UI layer (base64 → Uint8Array conversion happens in ui.html)
   _imageBytes?: number[][];
 }
 
@@ -32,13 +33,18 @@ interface FrameDef {
 
 // ─── Dimension Parsing ───────────────────────────────────────
 
-function parseDimensions(dimStr: string | undefined): FrameDef[] {
+function parseDimensions(post: PostData): FrameDef[] {
+  // Use Size first, fallback to Dimensions
+  const dimStr = (post.Size && post.Size.trim()) ? post.Size : post.Dimensions;
   if (!dimStr) return [{ label: 'Frame', width: 1080, height: 1080 }];
+
+  // Normalise: add "px" if raw numbers like "1080x1350"
+  const normalised = dimStr.replace(/(\d+)\s*x\s*(\d+)(?!px)/gi, '$1x$2px');
 
   const results: FrameDef[] = [];
 
-  // Handle "or" splits: "1080x1920px (vertical Reel) or 1080x1080px (carousel backup)"
-  const orParts = dimStr.split(/\s+or\s+/i);
+  // Handle "or" splits
+  const orParts = normalised.split(/\s+or\s+/i);
   if (orParts.length > 1) {
     for (const part of orParts) {
       const m = part.match(/(\d+)\s*x\s*(\d+)\s*px/i);
@@ -51,7 +57,7 @@ function parseDimensions(dimStr: string | undefined): FrameDef[] {
   }
 
   // Handle pipe splits: "FB: 1200x630px | IG Story: 1080x1920px"
-  const parts = dimStr.split('|');
+  const parts = normalised.split('|');
   for (const part of parts) {
     const m = part.match(/(\d+)\s*x\s*(\d+)\s*px/i);
     if (m) {
@@ -70,86 +76,131 @@ function countCarouselSlides(visualBrief: string | undefined): number {
   return Math.max(...matches.map(m => parseInt(m.match(/\d+/)![0])));
 }
 
-// ─── Text & Frame Creation ───────────────────────────────────
+// ─── Layout Constants ────────────────────────────────────────
 
-const TEXT_BLOCK_WIDTH = 380;
-const FRAME_START_X = 430;
-const FRAME_GAP = 40;
-const POST_GAP = 120;
-const SCALE_FACTOR = 0.25; // Scale frames down to 25% for readability on canvas
+const CARD_WIDTH = 280;
+const CARD_GAP = 20;
+const FRAME_GAP = 30;
+const POST_GAP = 100;
+const SCALE_FACTOR = 0.25;
 
-function createTextBlock(post: PostData, x: number, y: number, height: number): FrameNode {
-  const container = figma.createFrame();
-  container.name = `${post.Post_ID} — Info`;
-  container.resize(TEXT_BLOCK_WIDTH, Math.max(height, 400));
-  container.x = x;
-  container.y = y;
-  container.fills = [{ type: 'SOLID', color: { r: 0.97, g: 0.97, b: 0.97 } }];
-  container.cornerRadius = 8;
-  container.layoutMode = 'VERTICAL';
-  container.paddingTop = 16;
-  container.paddingBottom = 16;
-  container.paddingLeft = 16;
-  container.paddingRight = 16;
-  container.itemSpacing = 12;
-  container.primaryAxisSizingMode = 'AUTO';
+// Card 1 starts at x=0, Card 2 follows, then frames
+const CARD2_X = CARD_WIDTH + CARD_GAP;
+const FRAMES_START_X = CARD2_X + CARD_WIDTH + CARD_GAP;
 
-  // Helper to add a section
+// ─── Card 1: Post Info (ID, Date, Caption, Hashtags) ─────────
+
+function createInfoCard(post: PostData, y: number, minHeight: number): FrameNode {
+  const card = figma.createFrame();
+  card.name = `${post.Post_ID} — Post Info`;
+  card.x = 0;
+  card.y = y;
+  card.resize(CARD_WIDTH, minHeight);
+  card.fills = [{ type: 'SOLID', color: { r: 0.96, g: 0.97, b: 1.0 } }]; // light blue-grey
+  card.cornerRadius = 8;
+  card.strokeWeight = 1;
+  card.strokes = [{ type: 'SOLID', color: { r: 0.8, g: 0.85, b: 0.95 } }];
+  card.layoutMode = 'VERTICAL';
+  card.paddingTop = 16;
+  card.paddingBottom = 16;
+  card.paddingLeft = 16;
+  card.paddingRight = 16;
+  card.itemSpacing = 10;
+  card.primaryAxisSizingMode = 'AUTO';
+
+  function addLabel(text: string, size: number, bold: boolean, color: {r:number;g:number;b:number}) {
+    const node = figma.createText();
+    node.characters = text;
+    node.fontSize = size;
+    node.fontName = { family: 'Inter', style: bold ? 'Bold' : 'Regular' };
+    node.fills = [{ type: 'SOLID', color }];
+    node.layoutAlign = 'STRETCH';
+    node.textAutoResize = 'HEIGHT';
+    card.appendChild(node);
+    return node;
+  }
+
   function addSection(title: string, content: string) {
     if (!content || !content.trim()) return;
-
-    const titleNode = figma.createText();
-    titleNode.characters = title;
-    titleNode.fontSize = 11;
-    titleNode.fontName = { family: 'Inter', style: 'Bold' };
-    titleNode.fills = [{ type: 'SOLID', color: { r: 0.4, g: 0.4, b: 0.4 } }];
-    titleNode.layoutAlign = 'STRETCH';
-    container.appendChild(titleNode);
-
-    const contentNode = figma.createText();
-    contentNode.characters = content;
-    contentNode.fontSize = 12;
-    contentNode.fontName = { family: 'Inter', style: 'Regular' };
-    contentNode.fills = [{ type: 'SOLID', color: { r: 0.13, g: 0.13, b: 0.13 } }];
-    contentNode.layoutAlign = 'STRETCH';
-    contentNode.textAutoResize = 'HEIGHT';
-    container.appendChild(contentNode);
+    addLabel(title, 9, true, { r: 0.4, g: 0.5, b: 0.7 });
+    addLabel(content, 12, false, { r: 0.1, g: 0.1, b: 0.1 });
   }
 
-  // Post ID header
-  const header = figma.createText();
-  header.characters = post.Post_ID || 'Unknown';
-  header.fontSize = 16;
-  header.fontName = { family: 'Inter', style: 'Bold' };
-  header.fills = [{ type: 'SOLID', color: { r: 0.1, g: 0.1, b: 0.1 } }];
-  header.layoutAlign = 'STRETCH';
-  container.appendChild(header);
+  // Post ID
+  addLabel(post.Post_ID || 'Unknown', 15, true, { r: 0.1, g: 0.1, b: 0.5 });
 
-  // Metadata line
+  // Meta: platform · format · date
   const meta = [post.Platform, post.Content_Format, post.Scheduled_Date].filter(Boolean).join(' · ');
-  if (meta) {
-    const metaNode = figma.createText();
-    metaNode.characters = meta;
-    metaNode.fontSize = 11;
-    metaNode.fontName = { family: 'Inter', style: 'Regular' };
-    metaNode.fills = [{ type: 'SOLID', color: { r: 0.5, g: 0.5, b: 0.5 } }];
-    metaNode.layoutAlign = 'STRETCH';
-    container.appendChild(metaNode);
-  }
+  if (meta) addLabel(meta, 10, false, { r: 0.45, g: 0.5, b: 0.6 });
 
   // Divider
-  const divider = figma.createRectangle();
-  divider.resize(TEXT_BLOCK_WIDTH - 32, 1);
-  divider.fills = [{ type: 'SOLID', color: { r: 0.85, g: 0.85, b: 0.85 } }];
-  divider.layoutAlign = 'STRETCH';
-  container.appendChild(divider);
+  const div = figma.createRectangle();
+  div.resize(CARD_WIDTH - 32, 1);
+  div.fills = [{ type: 'SOLID', color: { r: 0.75, g: 0.82, b: 0.95 } }];
+  div.layoutAlign = 'STRETCH';
+  card.appendChild(div);
 
   addSection('CAPTION', post.Caption || '');
-  addSection('VISUAL BRIEF', post.Visual_Brief || '');
-  addSection('DIMENSIONS', post.Dimensions || '');
+  addSection('HASHTAGS', post.Hashtags || '');
 
-  return container;
+  return card;
 }
+
+// ─── Card 2: Creative Brief (Visual Brief + Other Copy) ───────
+
+function createCreativeCard(post: PostData, y: number, minHeight: number): FrameNode {
+  const card = figma.createFrame();
+  card.name = `${post.Post_ID} — Creative Brief`;
+  card.x = CARD2_X;
+  card.y = y;
+  card.resize(CARD_WIDTH, minHeight);
+  card.fills = [{ type: 'SOLID', color: { r: 0.97, g: 0.96, b: 1.0 } }]; // light lavender
+  card.cornerRadius = 8;
+  card.strokeWeight = 1;
+  card.strokes = [{ type: 'SOLID', color: { r: 0.85, g: 0.8, b: 0.95 } }];
+  card.layoutMode = 'VERTICAL';
+  card.paddingTop = 16;
+  card.paddingBottom = 16;
+  card.paddingLeft = 16;
+  card.paddingRight = 16;
+  card.itemSpacing = 10;
+  card.primaryAxisSizingMode = 'AUTO';
+
+  function addLabel(text: string, size: number, bold: boolean, color: {r:number;g:number;b:number}) {
+    const node = figma.createText();
+    node.characters = text;
+    node.fontSize = size;
+    node.fontName = { family: 'Inter', style: bold ? 'Bold' : 'Regular' };
+    node.fills = [{ type: 'SOLID', color }];
+    node.layoutAlign = 'STRETCH';
+    node.textAutoResize = 'HEIGHT';
+    card.appendChild(node);
+    return node;
+  }
+
+  function addSection(title: string, content: string) {
+    if (!content || !content.trim()) return;
+    addLabel(title, 9, true, { r: 0.5, g: 0.3, b: 0.7 });
+    addLabel(content, 12, false, { r: 0.1, g: 0.1, b: 0.1 });
+  }
+
+  // Header
+  addLabel('Creative Brief', 13, true, { r: 0.3, g: 0.1, b: 0.5 });
+
+  // Divider
+  const div = figma.createRectangle();
+  div.resize(CARD_WIDTH - 32, 1);
+  div.fills = [{ type: 'SOLID', color: { r: 0.8, g: 0.75, b: 0.95 } }];
+  div.layoutAlign = 'STRETCH';
+  card.appendChild(div);
+
+  addSection('VISUAL BRIEF', post.Visual_Brief || '');
+  addSection('COPY ON IMAGE', post.Other_Copy || '');
+
+  return card;
+}
+
+// ─── Content Frame ───────────────────────────────────────────
 
 function createContentFrame(
   def: FrameDef,
@@ -173,7 +224,6 @@ function createContentFrame(
   frame.clipsContent = true;
 
   if (imageBytes && imageBytes.length > 0) {
-    // Place image as fill
     const imageHash = figma.createImage(imageBytes);
     frame.fills = [{
       type: 'IMAGE',
@@ -181,18 +231,16 @@ function createContentFrame(
       scaleMode: 'FILL',
     }];
   } else {
-    // Placeholder fill
     frame.fills = [{ type: 'SOLID', color: { r: 0.93, g: 0.93, b: 0.93 } }];
 
-    // Size label
-    const label = figma.createText();
-    label.characters = `${def.width}×${def.height}`;
-    label.fontSize = 10;
-    label.fontName = { family: 'Inter', style: 'Regular' };
-    label.fills = [{ type: 'SOLID', color: { r: 0.6, g: 0.6, b: 0.6 } }];
-    label.x = 8;
-    label.y = 8;
-    frame.appendChild(label);
+    const sizeLabel = figma.createText();
+    sizeLabel.characters = `${def.width}×${def.height}`;
+    sizeLabel.fontSize = 10;
+    sizeLabel.fontName = { family: 'Inter', style: 'Regular' };
+    sizeLabel.fills = [{ type: 'SOLID', color: { r: 0.6, g: 0.6, b: 0.6 } }];
+    sizeLabel.x = 8;
+    sizeLabel.y = 8;
+    frame.appendChild(sizeLabel);
 
     if (def.label && def.label !== 'Frame') {
       const nameLabel = figma.createText();
@@ -212,7 +260,6 @@ function createContentFrame(
 // ─── Main Import Logic ───────────────────────────────────────
 
 async function importPosts(posts: PostData[]) {
-  // Load fonts
   await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
   await figma.loadFontAsync({ family: 'Inter', style: 'Bold' });
 
@@ -221,12 +268,12 @@ async function importPosts(posts: PostData[]) {
   let totalFrames = 0;
 
   for (const post of posts) {
-    const dims = parseDimensions(post.Dimensions);
+    const dims = parseDimensions(post);
     const isCarousel = (post.Content_Format || '').toLowerCase().includes('carousel');
     const slideCount = isCarousel ? Math.max(countCarouselSlides(post.Visual_Brief), 1) : 1;
 
-    // Calculate total frames width for this post
-    let framesX = FRAME_START_X;
+    // Calculate content frames layout
+    let framesX = FRAMES_START_X;
     let maxFrameHeight = 0;
     const framesToCreate: { def: FrameDef; x: number; y: number; index: number }[] = [];
 
@@ -240,11 +287,14 @@ async function importPosts(posts: PostData[]) {
       }
     }
 
-    // Create text block
-    const textBlock = createTextBlock(post, 0, currentY, maxFrameHeight);
-    page.appendChild(textBlock);
+    // Create the two info cards (height will auto-size)
+    const infoCard = createInfoCard(post, currentY, maxFrameHeight);
+    page.appendChild(infoCard);
 
-    // Parse image bytes (one per frame slot, injected by UI)
+    const creativeCard = createCreativeCard(post, currentY, maxFrameHeight);
+    page.appendChild(creativeCard);
+
+    // Parse image bytes
     const allImageBytes: (Uint8Array | undefined)[] = [];
     if (post._imageBytes && Array.isArray(post._imageBytes)) {
       for (const arr of post._imageBytes) {
@@ -252,25 +302,18 @@ async function importPosts(posts: PostData[]) {
       }
     }
 
-    // Create frames
+    // Create content frames
     for (let i = 0; i < framesToCreate.length; i++) {
       const fc = framesToCreate[i];
       const imgBytes = allImageBytes[i];
-      const frame = createContentFrame(
-        fc.def,
-        fc.x,
-        fc.y,
-        post.Post_ID || 'Unknown',
-        fc.index,
-        imgBytes
-      );
+      const frame = createContentFrame(fc.def, fc.x, fc.y, post.Post_ID || 'Unknown', fc.index, imgBytes);
       page.appendChild(frame);
       totalFrames++;
     }
 
-    // Move Y down
-    const textHeight = textBlock.height;
-    currentY += Math.max(maxFrameHeight, textHeight) + POST_GAP;
+    // Advance Y
+    const tallestCard = Math.max(infoCard.height, creativeCard.height, maxFrameHeight);
+    currentY += tallestCard + POST_GAP;
   }
 
   return totalFrames;

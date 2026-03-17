@@ -35,6 +35,7 @@
     <div class="stat"><span class="label">Posts (approved + ready)</span><span class="value" id="post-count">—</span></div>
     <div class="stat"><span class="label">Frames to create</span><span class="value" id="frame-count">—</span></div>
     <div class="stat"><span class="label">Images to place</span><span class="value green" id="image-count">—</span></div>
+    <div class="stat"><span class="label">Posts with image copy</span><span class="value" id="copy-count">—</span></div>
     <div class="stat"><span class="label">Last synced</span><span class="value" id="last-updated">—</span></div>
     <div class="refresh" id="refresh-link">Refresh</div>
   </div>
@@ -64,10 +65,13 @@
     const progressEl = document.getElementById('progress-msg');
     const warnEl = document.getElementById('warn-no-images');
 
-    function parseDimensions(dimStr) {
+    function parseDimensions(post) {
+      // Use Size first, fallback to Dimensions
+      const dimStr = (post.Size && post.Size.trim()) ? post.Size : post.Dimensions;
       if (!dimStr) return [{ label: 'Frame', width: 1080, height: 1080 }];
+      const normalised = dimStr.replace(/(\d+)\s*x\s*(\d+)(?!px)/gi, '$1x$2px');
       const results = [];
-      const orParts = dimStr.split(/\s+or\s+/i);
+      const orParts = normalised.split(/\s+or\s+/i);
       if (orParts.length > 1) {
         for (const part of orParts) {
           const m = part.match(/(\d+)\s*x\s*(\d+)\s*px/i);
@@ -78,7 +82,7 @@
         }
         return results.length ? results : [{ label: 'Frame', width: 1080, height: 1080 }];
       }
-      const parts = dimStr.split('|');
+      const parts = normalised.split('|');
       for (const part of parts) {
         const m = part.match(/(\d+)\s*x\s*(\d+)\s*px/i);
         if (m) {
@@ -98,7 +102,7 @@
     function countFrames(posts) {
       let total = 0;
       for (const post of posts) {
-        const dims = parseDimensions(post.Dimensions);
+        const dims = parseDimensions(post);
         const isCarousel = (post.Content_Format || '').toLowerCase().includes('carousel');
         if (isCarousel) {
           const slides = countCarouselSlides(post.Visual_Brief);
@@ -182,11 +186,13 @@
 
       jsonData = posts;
       const withImages = posts.filter(p => p.Image_URLs && p.Image_URLs.trim());
+      const withCopy = posts.filter(p => p.Other_Copy && p.Other_Copy.trim());
       const imageCount = withImages.length;
 
       document.getElementById('post-count').textContent = posts.length;
       document.getElementById('frame-count').textContent = countFrames(posts);
       document.getElementById('image-count').textContent = `${imageCount}/${posts.length}`;
+      document.getElementById('copy-count').textContent = `${withCopy.length}/${posts.length}`;
       document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
       preview.style.display = 'block';
 
